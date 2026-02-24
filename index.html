@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="אמירות חיוביות - משפטים חיוביים, מנטרות ואמונה. כל יום, כל רגע. בחינם, בלי פרסומות.">
+  <meta name="theme-color" content="#6c63ff">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="assets/icon-192.png">
+  <link rel="apple-touch-icon" href="assets/icon-192.png">
+  <title>אמירות חיוביות</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Header -->
+  <header class="header">
+    <button class="settings-btn" id="settingsBtn" aria-label="הגדרות">&#9881;</button>
+    <h1>אמירות חיוביות</h1>
+    <p class="subtitle">כל רגע הוא הזדמנות להאמין</p>
+  </header>
+
+  <!-- Category filter -->
+  <div class="categories" id="categories">
+    <button class="category-chip active" data-category="all">הכל</button>
+    <button class="category-chip" data-category="confidence">ביטחון עצמי</button>
+    <button class="category-chip" data-category="calm">שלווה ורוגע</button>
+    <button class="category-chip" data-category="success">הצלחה ושפע</button>
+    <button class="category-chip" data-category="self-love">אהבה עצמית</button>
+    <button class="category-chip" data-category="change">התמודדות עם שינוי</button>
+    <button class="category-chip" data-category="faith">אמונה והשגחה</button>
+    <button class="category-chip" data-category="gratitude">הכרת תודה</button>
+  </div>
+
+  <!-- Main affirmation -->
+  <main class="affirmation-container">
+    <div class="category-badge" id="currentCategory">אמונה והשגחה</div>
+    <p class="affirmation-text animate-in" id="affirmationText">הכל מדויק לי</p>
+  </main>
+
+  <!-- Action buttons -->
+  <div class="actions">
+    <button class="btn btn-primary" id="newAffirmationBtn">
+      <span class="btn-icon">&#10024;</span>
+      משפט חדש
+    </button>
+    <button class="btn btn-secondary" id="cameraBtn">
+      <span class="btn-icon">&#128248;</span>
+      הסתכל על עצמך ותגיד את זה
+    </button>
+    <button class="btn btn-secondary" id="shareBtn">
+      <span class="btn-icon">&#128172;</span>
+      שתף את המשפט
+    </button>
+  </div>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="footer-links">
+      <a href="#" class="footer-link" id="donateBtn">&#9829; האפליקציה עזרה לך? תמכו בנו</a>
+    </div>
+    <p class="no-ads-badge">ללא פרסומות. לתמיד.</p>
+  </footer>
+
+  <!-- Camera section -->
+  <div class="camera-section" id="cameraSection">
+    <button class="camera-close" id="cameraClose">&#10005;</button>
+    <video class="camera-video" id="cameraVideo" autoplay playsinline></video>
+    <div class="camera-overlay">
+      <p class="affirmation-text" id="cameraAffirmation">הכל מדויק לי</p>
+    </div>
+  </div>
+
+  <!-- Camera permission dialog -->
+  <div class="dialog-backdrop" id="cameraDialog">
+    <div class="dialog">
+      <h3>&#128248; הפעלת מצלמה</h3>
+      <p>האם ברצונך להפעיל את המצלמה כדי להסתכל על עצמך ולהגיד את המשפט החיובי?</p>
+      <p style="font-size: 0.75rem; opacity: 0.7;">אין שמירת תמונות. הכל נשאר אצלך.</p>
+      <div class="dialog-actions">
+        <button class="btn-confirm" id="cameraConfirm">כן, בואו!</button>
+        <button class="btn-cancel" id="cameraDeny">לא, תודה</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings panel -->
+  <div class="settings-backdrop" id="settingsBackdrop"></div>
+  <div class="settings-panel" id="settingsPanel">
+    <div class="settings-header">
+      <h2>&#9881; הגדרות</h2>
+      <button class="settings-close" id="settingsClose">&#10005;</button>
+    </div>
+
+    <div class="setting-group">
+      <h3>&#128276; תזכורות</h3>
+      <div class="setting-row">
+        <label>תזכורת בוקר</label>
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <input type="time" id="morningTime" value="08:00">
+          <label class="toggle">
+            <input type="checkbox" id="morningToggle" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+      </div>
+      <div class="setting-row">
+        <label>תזכורת צהריים</label>
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <input type="time" id="noonTime" value="13:00">
+          <label class="toggle">
+            <input type="checkbox" id="noonToggle" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+      </div>
+      <div class="setting-row">
+        <label>תזכורת ערב</label>
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <input type="time" id="eveningTime" value="21:00">
+          <label class="toggle">
+            <input type="checkbox" id="eveningToggle" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+      </div>
+      <button class="btn btn-secondary" id="enableNotifications" style="margin-top: 12px; font-size: 0.85rem;">
+        &#128276; אפשר התראות
+      </button>
+    </div>
+
+    <div class="setting-group">
+      <h3>&#9997; משפטים אישיים</h3>
+      <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 8px;">הוסף משפטים משלך שמחזקים אותך</p>
+      <div class="personal-input">
+        <input type="text" id="personalInput" placeholder="כתוב משפט חיובי...">
+        <button id="addPersonalBtn">&#10133;</button>
+      </div>
+      <div class="personal-list" id="personalList"></div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

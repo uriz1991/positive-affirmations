@@ -1,0 +1,23 @@
+{
+  "name": "אמירות חיוביות",
+  "short_name": "אמירות",
+  "description": "משפטים חיוביים, מנטרות ואמונה - כל יום, כל רגע",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#1a1a2e",
+  "theme_color": "#6c63ff",
+  "dir": "rtl",
+  "lang": "he",
+  "icons": [
+    {
+      "src": "assets/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "assets/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
