@@ -39,7 +39,6 @@ self.addEventListener('fetch', (event) => {
         return response;
       });
     }).catch(() => {
-      // Offline fallback for HTML pages
       if (event.request.destination === 'document') {
         return caches.match('./index.html');
       }
@@ -49,57 +48,13 @@ self.addEventListener('fetch', (event) => {
 
 // Handle messages from main app
 self.addEventListener('message', (event) => {
-  if (event.data.type === 'UPDATE_REMINDERS') {
-    scheduleReminders(event.data.settings);
+  if (event.data.type === 'SHOW_NOTIFICATION') {
+    showNotification(event.data.title);
   }
 });
 
-// ===== Reminder System =====
-let reminderTimers = [];
-
-function scheduleReminders(settings) {
-  // Clear existing timers
-  reminderTimers.forEach(id => clearTimeout(id));
-  reminderTimers = [];
-
-  const periods = ['morning', 'noon', 'evening'];
-  const periodNames = {
-    morning: 'בוקר טוב!',
-    noon: 'תזכורת צהריים',
-    evening: 'ערב טוב!'
-  };
-
-  periods.forEach(period => {
-    if (!settings[period] || !settings[period].enabled) return;
-
-    const [hours, minutes] = settings[period].time.split(':').map(Number);
-    scheduleDaily(hours, minutes, periodNames[period]);
-  });
-}
-
-function scheduleDaily(hours, minutes, title) {
-  const now = new Date();
-  const target = new Date();
-  target.setHours(hours, minutes, 0, 0);
-
-  // If time already passed today, schedule for tomorrow
-  if (target <= now) {
-    target.setDate(target.getDate() + 1);
-  }
-
-  const delay = target.getTime() - now.getTime();
-
-  const timerId = setTimeout(async () => {
-    await showNotification(title);
-    // Reschedule for next day
-    scheduleDaily(hours, minutes, title);
-  }, delay);
-
-  reminderTimers.push(timerId);
-}
-
+// Show notification with random affirmation
 async function showNotification(title) {
-  // Get a random affirmation for the notification
   try {
     const cache = await caches.open(CACHE_NAME);
     const response = await cache.match('./data/affirmations.json');
@@ -114,7 +69,7 @@ async function showNotification(title) {
         badge: './assets/icon-192.png',
         dir: 'rtl',
         lang: 'he',
-        tag: 'affirmation-reminder',
+        tag: 'affirmation-' + title,
         renotify: true
       });
     }

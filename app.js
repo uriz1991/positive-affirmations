@@ -13,6 +13,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   loadSettings();
   loadPersonalAffirmations();
   registerServiceWorker();
+  startReminderChecker();
 });
 
 // ===== Load Affirmations =====
@@ -246,14 +247,7 @@ function saveSettings() {
   };
 
   localStorage.setItem('reminder-settings', JSON.stringify(settings));
-
-  // Update service worker with new schedule
-  if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-    navigator.serviceWorker.controller.postMessage({
-      type: 'UPDATE_REMINDERS',
-      settings
-    });
-  }
+  startReminderChecker();
 }
 
 function loadSettings() {
@@ -287,10 +281,97 @@ async function requestNotificationPermission() {
 
   const permission = await Notification.requestPermission();
   if (permission === 'granted') {
-    showToast('התראות הופעלו בהצלחה!');
+    showToast('התראות הופעלו בהצלחה! תקבל תזכורות בשעות שהגדרת');
     saveSettings();
+    startReminderChecker();
   } else {
     showToast('לא ניתנה הרשאה להתראות');
+  }
+}
+
+// ===== Reminder Checker =====
+// Checks every 30 seconds if it's time for a reminder
+let reminderInterval = null;
+
+function startReminderChecker() {
+  if (reminderInterval) clearInterval(reminderInterval);
+
+  // Check immediately on start
+  checkReminders();
+
+  // Then check every 30 seconds
+  reminderInterval = setInterval(checkReminders, 30000);
+}
+
+function checkReminders() {
+  if (Notification.permission !== 'granted') return;
+
+  const saved = localStorage.getItem('reminder-settings');
+  if (!saved) return;
+
+  let settings;
+  try { settings = JSON.parse(saved); } catch { return; }
+
+  const now = new Date();
+  const currentTime = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
+  const today = now.toDateString();
+
+  // Get already-sent reminders for today
+  let sent = {};
+  try {
+    const sentData = localStorage.getItem('reminders-sent');
+    sent = sentData ? JSON.parse(sentData) : {};
+    // Reset if it's a new day
+    if (sent._date !== today) {
+      sent = { _date: today };
+    }
+  } catch {
+    sent = { _date: today };
+  }
+
+  const periods = {
+    morning: 'בוקר טוב!',
+    noon: 'תזכורת צהריים',
+    evening: 'ערב טוב!'
+  };
+
+  Object.entries(periods).forEach(([period, title]) => {
+    if (!settings[period] || !settings[period].enabled) return;
+    if (sent[period]) return; // Already sent today
+
+    const reminderTime = settings[period].time;
+
+    // Check if current time matches (within a 2-minute window)
+    if (isTimeMatch(currentTime, reminderTime)) {
+      sendNotification(title);
+      sent[period] = true;
+      localStorage.setItem('reminders-sent', JSON.stringify(sent));
+    }
+  });
+}
+
+function isTimeMatch(current, target) {
+  const [cH, cM] = current.split(':').map(Number);
+  const [tH, tM] = target.split(':').map(Number);
+  const currentMinutes = cH * 60 + cM;
+  const targetMinutes = tH * 60 + tM;
+  // Match within a 2-minute window
+  return currentMinutes >= targetMinutes && currentMinutes <= targetMinutes + 1;
+}
+
+function sendNotification(title) {
+  if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+    navigator.serviceWorker.controller.postMessage({
+      type: 'SHOW_NOTIFICATION',
+      title: title
+    });
+  } else {
+    // Fallback: show notification directly
+    new Notification(title, {
+      body: currentAffirmation ? currentAffirmation.text : 'הכל מדויק לי',
+      dir: 'rtl',
+      lang: 'he'
+    });
   }
 }
 
