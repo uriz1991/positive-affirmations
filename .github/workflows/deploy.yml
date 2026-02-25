@@ -1,0 +1,48 @@
+name: Deploy & Update Version
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  update-version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get current version and bump
+        id: version
+        run: |
+          # Read current version from index.html
+          CURRENT=$(grep -oP 'גרסה: <span id="appVersion">\K[^<]+' index.html)
+
+          # Bump patch version (1.0.0 -> 1.0.1 -> 1.0.2 ...)
+          IFS='.' read -r major minor patch <<< "$CURRENT"
+          NEW_VERSION="$major.$minor.$((patch + 1))"
+          TODAY=$(date +%Y-%m-%d)
+
+          echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "date=$TODAY" >> $GITHUB_OUTPUT
+          echo "Bumping version: $CURRENT -> $NEW_VERSION"
+
+      - name: Update version in index.html
+        run: |
+          sed -i "s|גרסה: <span id=\"appVersion\">[^<]*|גרסה: <span id=\"appVersion\">${{ steps.version.outputs.version }}|" index.html
+          sed -i "s|עדכון אחרון: <span id=\"appLastUpdate\">[^<]*|עדכון אחרון: <span id=\"appLastUpdate\">${{ steps.version.outputs.date }}|" index.html
+
+      - name: Update Service Worker cache version
+        run: |
+          sed -i "s|affirmations-v[0-9]*|affirmations-v${{ steps.version.outputs.version }}|" sw.js
+
+      - name: Commit version bump
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add index.html sw.js
+          git diff --staged --quiet || git commit -m "v${{ steps.version.outputs.version }} - auto version bump"
+          git push
