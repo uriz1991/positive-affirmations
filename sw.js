@@ -1,4 +1,4 @@
-const CACHE_NAME = 'affirmations-v1.0.4.0.3.0.2.0.1';
+const CACHE_NAME = 'affirmations-v1.0.4';
 const ASSETS = [
   './',
   './index.html',

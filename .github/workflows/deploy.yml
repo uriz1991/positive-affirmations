@@ -37,7 +37,7 @@ jobs:
 
       - name: Update Service Worker cache version
         run: |
-          sed -i "s|affirmations-v[0-9]*|affirmations-v${{ steps.version.outputs.version }}|" sw.js
+          sed -i "s|affirmations-v[0-9.]*|affirmations-v${{ steps.version.outputs.version }}|" sw.js
 
       - name: Commit version bump
         run: |
