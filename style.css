@@ -281,6 +281,24 @@ body {
   text-shadow: 0 2px 10px rgba(0, 0, 0, 0.8);
 }
 
+.camera-next-btn {
+  margin-top: 16px;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: white;
+  padding: 10px 24px;
+  border-radius: 12px;
+  font-family: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+  backdrop-filter: blur(10px);
+  transition: background 0.3s ease;
+}
+
+.camera-next-btn:active {
+  background: rgba(255, 255, 255, 0.25);
+}
+
 .camera-close {
   position: absolute;
   top: 16px;

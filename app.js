@@ -131,6 +131,12 @@ function setupEventListeners() {
   // Camera close
   document.getElementById('cameraClose').addEventListener('click', closeCamera);
 
+  // Camera next affirmation
+  document.getElementById('cameraNextBtn').addEventListener('click', () => {
+    showRandomAffirmation();
+    document.getElementById('cameraAffirmation').textContent = currentAffirmation.text;
+  });
+
   // Share button
   document.getElementById('shareBtn').addEventListener('click', shareAffirmation);
 
