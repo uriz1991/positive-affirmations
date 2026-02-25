@@ -545,6 +545,25 @@ body {
   border: 1px solid var(--card-border);
 }
 
+/* Category toggles in settings */
+.category-toggles {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.category-toggle-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--card-border);
+}
+
+.category-toggle-row label {
+  font-size: 0.85rem;
+}
+
 /* Animations */
 @keyframes fadeInUp {
   from {

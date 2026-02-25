@@ -4,10 +4,13 @@ let affirmationsData = null;
 let currentCategory = 'all';
 let currentAffirmation = null;
 let cameraStream = null;
+let enabledCategories = null; // null = all enabled
 
 // ===== Initialize =====
 document.addEventListener('DOMContentLoaded', async () => {
   await loadAffirmations();
+  loadEnabledCategories();
+  updateCategoryChips();
   showRandomAffirmation();
   setupEventListeners();
   loadSettings();
@@ -40,13 +43,18 @@ function showRandomAffirmation() {
 
   let pool = affirmationsData.affirmations;
 
+  // Filter by enabled categories (from settings)
+  if (enabledCategories && enabledCategories.length > 0) {
+    pool = pool.filter(a => enabledCategories.includes(a.category));
+  }
+
   // Add personal affirmations to pool
   const personal = getPersonalAffirmations();
   if (personal.length > 0) {
     pool = pool.concat(personal.map(text => ({ text, category: 'personal' })));
   }
 
-  // Filter by category
+  // Filter by selected category chip
   if (currentCategory !== 'all') {
     pool = pool.filter(a => a.category === currentCategory);
   }
@@ -140,7 +148,6 @@ function setupEventListeners() {
 
   // Notification buttons
   document.getElementById('enableNotifications').addEventListener('click', requestNotificationPermission);
-  document.getElementById('testNotification').addEventListener('click', testNotification);
 
   // Reminder toggles and times
   ['morning', 'noon', 'evening'].forEach(period => {
@@ -224,6 +231,7 @@ function showToast(message) {
 function openSettings() {
   document.getElementById('settingsPanel').classList.add('active');
   document.getElementById('settingsBackdrop').classList.add('active');
+  renderCategoryToggles();
 }
 
 function closeSettings() {
@@ -287,47 +295,6 @@ async function requestNotificationPermission() {
     startReminderChecker();
   } else {
     showToast('לא ניתנה הרשאה להתראות');
-  }
-}
-
-function testNotification() {
-  const statusEl = document.getElementById('notificationStatus');
-
-  // Check permission
-  if (!('Notification' in window)) {
-    statusEl.textContent = 'הדפדפן לא תומך בהתראות';
-    return;
-  }
-
-  statusEl.textContent = 'סטטוס: ' + Notification.permission;
-
-  if (Notification.permission === 'default') {
-    statusEl.textContent = 'צריך קודם ללחוץ "אפשר התראות"';
-    return;
-  }
-
-  if (Notification.permission === 'denied') {
-    statusEl.textContent = 'ההתראות חסומות. לך להגדרות הדפדפן ואפשר התראות לאתר הזה';
-    return;
-  }
-
-  // Permission granted - send test notification
-  statusEl.textContent = 'שולח התראת בדיקה...';
-
-  if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-    navigator.serviceWorker.controller.postMessage({
-      type: 'SHOW_NOTIFICATION',
-      title: 'בדיקה עברה בהצלחה!'
-    });
-    statusEl.textContent = 'התראה נשלחה! בדוק את ההתראות שלך';
-  } else {
-    // Fallback
-    new Notification('בדיקה עברה בהצלחה!', {
-      body: currentAffirmation ? currentAffirmation.text : 'הכל מדויק לי',
-      dir: 'rtl',
-      lang: 'he'
-    });
-    statusEl.textContent = 'התראה נשלחה (ישירות)! בדוק את ההתראות';
   }
 }
 
@@ -478,6 +445,91 @@ function renderPersonalList() {
     div.appendChild(span);
     div.appendChild(btn);
     list.appendChild(div);
+  });
+}
+
+// ===== Category Preferences =====
+function loadEnabledCategories() {
+  try {
+    const saved = localStorage.getItem('enabled-categories');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      enabledCategories = Array.isArray(parsed) ? parsed : null;
+    } else {
+      enabledCategories = null; // null = all enabled
+    }
+  } catch {
+    enabledCategories = null;
+  }
+}
+
+function saveEnabledCategories() {
+  const checkboxes = document.querySelectorAll('#categoryToggles input[type="checkbox"]');
+  const selected = [];
+  checkboxes.forEach(cb => {
+    if (cb.checked) selected.push(cb.dataset.category);
+  });
+
+  enabledCategories = selected.length > 0 ? selected : null;
+  localStorage.setItem('enabled-categories', JSON.stringify(selected));
+  updateCategoryChips();
+  showRandomAffirmation();
+}
+
+function renderCategoryToggles() {
+  const container = document.getElementById('categoryToggles');
+  if (!container || !affirmationsData) return;
+  container.innerHTML = '';
+
+  const allCategories = Object.entries(affirmationsData.categories);
+  const allEnabled = !enabledCategories; // null = all
+
+  allCategories.forEach(([key, name]) => {
+    const row = document.createElement('div');
+    row.className = 'category-toggle-row';
+
+    const label = document.createElement('label');
+    label.textContent = name;
+
+    const toggle = document.createElement('label');
+    toggle.className = 'toggle';
+
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    input.dataset.category = key;
+    input.checked = allEnabled || enabledCategories.includes(key);
+    input.addEventListener('change', saveEnabledCategories);
+
+    const slider = document.createElement('span');
+    slider.className = 'toggle-slider';
+
+    toggle.appendChild(input);
+    toggle.appendChild(slider);
+    row.appendChild(label);
+    row.appendChild(toggle);
+    container.appendChild(row);
+  });
+}
+
+function updateCategoryChips() {
+  const chips = document.querySelectorAll('.category-chip[data-category]');
+  chips.forEach(chip => {
+    const cat = chip.dataset.category;
+    if (cat === 'all') {
+      chip.style.display = '';
+      return;
+    }
+    if (!enabledCategories || enabledCategories.includes(cat)) {
+      chip.style.display = '';
+    } else {
+      chip.style.display = 'none';
+      // If this hidden chip was active, switch to "all"
+      if (chip.classList.contains('active')) {
+        chip.classList.remove('active');
+        document.querySelector('.category-chip[data-category="all"]').classList.add('active');
+        currentCategory = 'all';
+      }
+    }
   });
 }
 
