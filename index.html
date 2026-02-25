@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="אמירות חיוביות - משפטים חיוביים, מנטרות ואמונה. כל יום, כל רגע. בחינם, בלי פרסומות.">
   <meta name="theme-color" content="#6c63ff">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'; media-src 'self'; connect-src 'self';">
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="assets/icon-192.png">
   <link rel="apple-touch-icon" href="assets/icon-192.png">
@@ -133,7 +134,7 @@
       <h3>&#9997; משפטים אישיים</h3>
       <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 8px;">הוסף משפטים משלך שמחזקים אותך</p>
       <div class="personal-input">
-        <input type="text" id="personalInput" placeholder="כתוב משפט חיובי...">
+        <input type="text" id="personalInput" placeholder="כתוב משפט חיובי..." maxlength="200">
         <button id="addPersonalBtn">&#10133;</button>
       </div>
       <div class="personal-list" id="personalList"></div>

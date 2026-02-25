@@ -129,7 +129,7 @@ function setupEventListeners() {
   document.getElementById('donateBtn').addEventListener('click', (e) => {
     e.preventDefault();
     // Replace with your actual PayPal/Buy Me a Coffee link
-    window.open('https://buymeacoffee.com/uriel.zion', '_blank');
+    window.open('https://buymeacoffee.com/uriel.zion', '_blank', 'noopener,noreferrer');
   });
 
   // Settings
@@ -260,7 +260,9 @@ function loadSettings() {
   const saved = localStorage.getItem('reminder-settings');
   if (!saved) return;
 
-  const settings = JSON.parse(saved);
+  let settings;
+  try { settings = JSON.parse(saved); } catch { return; }
+  if (!settings) return;
 
   if (settings.morning) {
     document.getElementById('morningToggle').checked = settings.morning.enabled;
@@ -294,16 +296,25 @@ async function requestNotificationPermission() {
 
 // ===== Personal Affirmations =====
 function getPersonalAffirmations() {
-  const saved = localStorage.getItem('personal-affirmations');
-  return saved ? JSON.parse(saved) : [];
+  try {
+    const saved = localStorage.getItem('personal-affirmations');
+    const parsed = saved ? JSON.parse(saved) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
 }
 
 function addPersonalAffirmation() {
   const input = document.getElementById('personalInput');
   const text = input.value.trim();
-  if (!text) return;
+  if (!text || text.length > 200) return;
 
   const personal = getPersonalAffirmations();
+  if (personal.length >= 50) {
+    showToast('ניתן להוסיף עד 50 משפטים אישיים');
+    return;
+  }
   personal.push(text);
   localStorage.setItem('personal-affirmations', JSON.stringify(personal));
 
@@ -325,18 +336,26 @@ function loadPersonalAffirmations() {
 function renderPersonalList() {
   const list = document.getElementById('personalList');
   const personal = getPersonalAffirmations();
+  list.innerHTML = '';
 
-  if (personal.length === 0) {
-    list.innerHTML = '';
-    return;
-  }
+  if (personal.length === 0) return;
 
-  list.innerHTML = personal.map((text, i) => `
-    <div class="personal-item">
-      <span>${text}</span>
-      <button onclick="removePersonalAffirmation(${i})" aria-label="מחק">&#10005;</button>
-    </div>
-  `).join('');
+  personal.forEach((text, i) => {
+    const div = document.createElement('div');
+    div.className = 'personal-item';
+
+    const span = document.createElement('span');
+    span.textContent = text;
+
+    const btn = document.createElement('button');
+    btn.innerHTML = '&#10005;';
+    btn.setAttribute('aria-label', 'מחק');
+    btn.addEventListener('click', () => removePersonalAffirmation(i));
+
+    div.appendChild(span);
+    div.appendChild(btn);
+    list.appendChild(div);
+  });
 }
 
 // ===== Service Worker =====

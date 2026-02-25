@@ -32,7 +32,7 @@ self.addEventListener('fetch', (event) => {
     caches.match(event.request).then((cached) => {
       return cached || fetch(event.request).then((response) => {
         // Cache new requests dynamically
-        if (response.status === 200) {
+        if (response.status === 200 && event.request.url.startsWith(self.location.origin)) {
           const clone = response.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
         }
