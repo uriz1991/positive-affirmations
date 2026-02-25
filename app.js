@@ -138,8 +138,9 @@ function setupEventListeners() {
   document.getElementById('settingsClose').addEventListener('click', closeSettings);
   document.getElementById('settingsBackdrop').addEventListener('click', closeSettings);
 
-  // Notification button
+  // Notification buttons
   document.getElementById('enableNotifications').addEventListener('click', requestNotificationPermission);
+  document.getElementById('testNotification').addEventListener('click', testNotification);
 
   // Reminder toggles and times
   ['morning', 'noon', 'evening'].forEach(period => {
@@ -286,6 +287,47 @@ async function requestNotificationPermission() {
     startReminderChecker();
   } else {
     showToast('לא ניתנה הרשאה להתראות');
+  }
+}
+
+function testNotification() {
+  const statusEl = document.getElementById('notificationStatus');
+
+  // Check permission
+  if (!('Notification' in window)) {
+    statusEl.textContent = 'הדפדפן לא תומך בהתראות';
+    return;
+  }
+
+  statusEl.textContent = 'סטטוס: ' + Notification.permission;
+
+  if (Notification.permission === 'default') {
+    statusEl.textContent = 'צריך קודם ללחוץ "אפשר התראות"';
+    return;
+  }
+
+  if (Notification.permission === 'denied') {
+    statusEl.textContent = 'ההתראות חסומות. לך להגדרות הדפדפן ואפשר התראות לאתר הזה';
+    return;
+  }
+
+  // Permission granted - send test notification
+  statusEl.textContent = 'שולח התראת בדיקה...';
+
+  if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+    navigator.serviceWorker.controller.postMessage({
+      type: 'SHOW_NOTIFICATION',
+      title: 'בדיקה עברה בהצלחה!'
+    });
+    statusEl.textContent = 'התראה נשלחה! בדוק את ההתראות שלך';
+  } else {
+    // Fallback
+    new Notification('בדיקה עברה בהצלחה!', {
+      body: currentAffirmation ? currentAffirmation.text : 'הכל מדויק לי',
+      dir: 'rtl',
+      lang: 'he'
+    });
+    statusEl.textContent = 'התראה נשלחה (ישירות)! בדוק את ההתראות';
   }
 }
 
