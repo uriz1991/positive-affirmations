@@ -227,6 +227,22 @@ body {
   opacity: 0.6;
 }
 
+.footer-credit {
+  font-size: 0.6rem;
+  color: var(--text-secondary);
+  margin-top: 4px;
+  opacity: 0.6;
+}
+
+.footer-credit-link {
+  color: var(--accent-light);
+  text-decoration: none;
+}
+
+.footer-credit-link:hover {
+  text-decoration: underline;
+}
+
 /* Settings button */
 .settings-btn {
   position: absolute;
