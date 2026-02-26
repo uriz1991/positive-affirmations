@@ -197,9 +197,12 @@ function closeCamera() {
 // ===== Share =====
 async function shareAffirmation() {
   const text = currentAffirmation.text;
+  const appUrl = 'https://uriz1991.github.io/positive-affirmations/';
+  const shareText = `"${text}"\n\nאמירות חיוביות יומיות 👉 ${appUrl}`;
   const shareData = {
     title: 'אמירות חיוביות',
-    text: `"${text}" - מתוך אפליקציית אמירות חיוביות`,
+    text: shareText,
+    url: appUrl,
   };
 
   if (navigator.share) {
@@ -211,11 +214,11 @@ async function shareAffirmation() {
   } else {
     // Fallback: copy to clipboard
     try {
-      await navigator.clipboard.writeText(`"${text}" - מתוך אפליקציית אמירות חיוביות`);
+      await navigator.clipboard.writeText(shareText);
       showToast('המשפט הועתק! אפשר להדביק ולשתף');
     } catch (err) {
       // Fallback for older browsers
-      prompt('העתק את המשפט:', `"${text}"`);
+      prompt('העתק את המשפט:', shareText);
     }
   }
 }
