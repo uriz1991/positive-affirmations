@@ -17,8 +17,10 @@
   <!-- Header -->
   <header class="header">
     <button class="settings-btn" id="settingsBtn" aria-label="הגדרות">&#9881;</button>
+    <button class="theme-btn" id="themeBtn" aria-label="החלף ערכת צבעים">&#127769;</button>
     <h1>אמירות חיוביות</h1>
     <p class="subtitle">כל רגע הוא הזדמנות להאמין</p>
+    <div class="streak-badge" id="streakBadge" style="display:none">&#128293; <span id="streakCount">1</span> ימים ברציפות</div>
   </header>
 
   <!-- Category filter -->
@@ -34,12 +36,14 @@
     <button class="category-chip" data-category="change">התמודדות עם שינוי</button>
     <button class="category-chip" data-category="gratitude">הכרת תודה</button>
     <button class="category-chip" data-category="wealth">מנטליות עושר</button>
+    <button class="category-chip" data-category="favorites">&#11088; מועדפים</button>
   </div>
 
   <!-- Main affirmation -->
   <main class="affirmation-container">
     <div class="category-badge" id="currentCategory">אמונה והשגחה</div>
     <p class="affirmation-text animate-in" id="affirmationText">הכל מדויק לי</p>
+    <button class="favorite-btn" id="favoriteBtn" aria-label="הוסף למועדפים">&#9734;</button>
   </main>
 
   <!-- Action buttons -->

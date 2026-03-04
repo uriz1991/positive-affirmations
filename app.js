@@ -8,6 +8,7 @@ let enabledCategories = null; // null = all enabled
 
 // ===== Initialize =====
 document.addEventListener('DOMContentLoaded', async () => {
+  loadTheme();
   await loadAffirmations();
   loadEnabledCategories();
   updateCategoryChips();
@@ -17,6 +18,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   loadPersonalAffirmations();
   registerServiceWorker();
   startReminderChecker();
+  updateStreak();
+  // Favorite button
+  document.getElementById('favoriteBtn').addEventListener('click', toggleFavorite);
+  document.getElementById('themeBtn').addEventListener('click', toggleTheme);
 });
 
 // ===== Load Affirmations =====
@@ -551,4 +556,115 @@ async function registerServiceWorker() {
       console.log('Service Worker registration failed:', err);
     }
   }
+}
+
+// ===== Theme (Dark / Light) =====
+function loadTheme() {
+  const saved = localStorage.getItem('theme');
+  if (saved === 'light') {
+    document.documentElement.classList.add('light');
+    document.getElementById('themeBtn').textContent = '☀️';
+  }
+}
+
+function toggleTheme() {
+  const isLight = document.documentElement.classList.toggle('light');
+  localStorage.setItem('theme', isLight ? 'light' : 'dark');
+  document.getElementById('themeBtn').textContent = isLight ? '☀️' : '🌙';
+}
+
+// ===== Daily Streak =====
+function updateStreak() {
+  const today = new Date().toDateString();
+  const saved = localStorage.getItem('streak-data');
+  let data = { streak: 0, lastVisit: null };
+  try { if (saved) data = JSON.parse(saved); } catch {}
+
+  if (data.lastVisit === today) {
+    // Already visited today — keep streak
+  } else {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    if (data.lastVisit === yesterday.toDateString()) {
+      data.streak += 1;
+    } else {
+      data.streak = 1;
+    }
+    data.lastVisit = today;
+    localStorage.setItem('streak-data', JSON.stringify(data));
+  }
+
+  if (data.streak >= 2) {
+    document.getElementById('streakBadge').style.display = '';
+    document.getElementById('streakCount').textContent = data.streak;
+  }
+}
+
+// ===== Favorites =====
+function getFavorites() {
+  try {
+    const saved = localStorage.getItem('favorites');
+    const parsed = saved ? JSON.parse(saved) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch { return []; }
+}
+
+function isFavorite(text) {
+  return getFavorites().includes(text);
+}
+
+function toggleFavorite() {
+  if (!currentAffirmation) return;
+  const text = currentAffirmation.text;
+  const favs = getFavorites();
+  const idx = favs.indexOf(text);
+  if (idx === -1) {
+    favs.push(text);
+    showToast('נשמר למועדפים ⭐');
+  } else {
+    favs.splice(idx, 1);
+    showToast('הוסר מהמועדפים');
+  }
+  localStorage.setItem('favorites', JSON.stringify(favs));
+  updateFavoriteBtn();
+}
+
+function updateFavoriteBtn() {
+  const btn = document.getElementById('favoriteBtn');
+  if (!btn || !currentAffirmation) return;
+  const fav = isFavorite(currentAffirmation.text);
+  btn.textContent = fav ? '★' : '☆';
+  btn.classList.toggle('active', fav);
+}
+
+// Override showRandomAffirmation to also handle favorites category + update star
+const _origShowRandom = showRandomAffirmation;
+function showRandomAffirmation() {
+  if (currentCategory === 'favorites') {
+    const favs = getFavorites();
+    if (favs.length === 0) {
+      showToast('עדיין אין משפטים מועדפים — לחץ ★ כדי לשמור');
+      return;
+    }
+    const textEl = document.getElementById('affirmationText');
+    const badgeEl = document.getElementById('currentCategory');
+    let next;
+    do {
+      const text = favs[Math.floor(Math.random() * favs.length)];
+      next = { text, category: 'favorites' };
+    } while (next.text === currentAffirmation?.text && favs.length > 1);
+    currentAffirmation = next;
+    textEl.classList.add('fade-out');
+    setTimeout(() => {
+      textEl.textContent = next.text;
+      badgeEl.textContent = 'מועדפים';
+      textEl.classList.remove('fade-out');
+      textEl.classList.add('fade-in');
+      setTimeout(() => textEl.classList.remove('fade-in'), 50);
+      updateFavoriteBtn();
+    }, 300);
+    return;
+  }
+  _origShowRandom();
+  setTimeout(updateFavoriteBtn, 350);
 }
