@@ -1,4 +1,4 @@
-const CACHE_NAME = 'affirmations-v1.1.0';
+const CACHE_NAME = 'affirmations-v1.1.1';
 const SETTINGS_CACHE = 'affirmations-settings';
 const ASSETS = [
   './',
