@@ -166,6 +166,9 @@ function setupEventListeners() {
   document.getElementById('personalInput').addEventListener('keypress', (e) => {
     if (e.key === 'Enter') addPersonalAffirmation();
   });
+
+  // Check for update
+  document.getElementById('checkUpdateBtn').addEventListener('click', checkForUpdate);
 }
 
 // ===== Camera =====
@@ -265,6 +268,12 @@ function saveSettings() {
   };
 
   localStorage.setItem('reminder-settings', JSON.stringify(settings));
+
+  // Mirror to Cache Storage so SW can read settings when app is closed
+  if (navigator.serviceWorker?.controller) {
+    navigator.serviceWorker.controller.postMessage({ type: 'SAVE_SETTINGS', settings });
+  }
+
   startReminderChecker();
 }
 
@@ -302,8 +311,28 @@ async function requestNotificationPermission() {
     showToast('התראות הופעלו בהצלחה! תקבל תזכורות בשעות שהגדרת');
     saveSettings();
     startReminderChecker();
+    registerPeriodicSync(); // enable background notifications when app is closed
   } else {
     showToast('לא ניתנה הרשאה להתראות');
+  }
+}
+
+// Register Periodic Background Sync so SW can fire reminders even when app is closed.
+// Requires: installed PWA + Chrome on Android + good engagement score.
+async function registerPeriodicSync() {
+  if (!('serviceWorker' in navigator)) return;
+  try {
+    const registration = await navigator.serviceWorker.ready;
+    if (!('periodicSync' in registration)) return;
+
+    const status = await navigator.permissions.query({ name: 'periodic-background-sync' });
+    if (status.state === 'granted') {
+      await registration.periodicSync.register('affirmation-reminder', {
+        minInterval: 30 * 60 * 1000 // browser may fire less often based on engagement
+      });
+    }
+  } catch (e) {
+    // Not supported — polling fallback (startReminderChecker) still works when app is open
   }
 }
 
@@ -361,7 +390,7 @@ function checkReminders() {
 
     // Check if current time matches (within a 2-minute window)
     if (isTimeMatch(currentTime, reminderTime)) {
-      sendNotification(title);
+      sendNotification(title, period);
       sent[period] = true;
       localStorage.setItem('reminders-sent', JSON.stringify(sent));
     }
@@ -377,12 +406,13 @@ function isTimeMatch(current, target) {
   return currentMinutes >= targetMinutes && currentMinutes <= targetMinutes + 1;
 }
 
-function sendNotification(title) {
+function sendNotification(title, period) {
   if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-    navigator.serviceWorker.controller.postMessage({
-      type: 'SHOW_NOTIFICATION',
-      title: title
-    });
+    navigator.serviceWorker.controller.postMessage({ type: 'SHOW_NOTIFICATION', title });
+    // Tell SW this period was already handled — prevents duplicate from periodicSync
+    if (period) {
+      navigator.serviceWorker.controller.postMessage({ type: 'MARK_SENT', period });
+    }
   } else {
     // Fallback: show notification directly
     new Notification(title, {
@@ -547,8 +577,68 @@ async function registerServiceWorker() {
   if ('serviceWorker' in navigator) {
     try {
       await navigator.serviceWorker.register('./sw.js');
+      // Once SW is ready, mirror saved settings so background sync can read them
+      await navigator.serviceWorker.ready;
+      syncSettingsToSW();
     } catch (err) {
       console.log('Service Worker registration failed:', err);
     }
+  }
+}
+
+// Push current localStorage settings into SW Cache Storage
+function syncSettingsToSW() {
+  if (!navigator.serviceWorker?.controller) return;
+  const saved = localStorage.getItem('reminder-settings');
+  if (!saved) return;
+  try {
+    navigator.serviceWorker.controller.postMessage({
+      type: 'SAVE_SETTINGS',
+      settings: JSON.parse(saved)
+    });
+  } catch {}
+}
+
+// ===== Check for Update =====
+async function checkForUpdate() {
+  const btn = document.getElementById('checkUpdateBtn');
+  const statusEl = document.getElementById('updateStatus');
+
+  btn.disabled = true;
+  statusEl.textContent = 'מחפש עדכונים...';
+
+  try {
+    // Fetch sw.js fresh from network (bypass all caches)
+    const response = await fetch('./sw.js?_=' + Date.now(), { cache: 'no-store' });
+    if (!response.ok) throw new Error('network');
+
+    const text = await response.text();
+    const match = text.match(/CACHE_NAME\s*=\s*['"]affirmations-v([\d.]+)['"]/);
+    if (!match) throw new Error('parse');
+
+    const latestVersion = match[1];
+    const currentVersion = document.getElementById('appVersion').textContent.trim();
+
+    if (latestVersion !== currentVersion) {
+      statusEl.textContent = `עדכון זמין (${latestVersion}) – מנקה ומרענן...`;
+
+      // Clear all caches
+      if ('caches' in window) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map(k => caches.delete(k)));
+      }
+
+      // Unregister SW so it reinstalls fresh
+      const reg = await navigator.serviceWorker.getRegistration();
+      if (reg) await reg.unregister();
+
+      setTimeout(() => location.reload(true), 600);
+    } else {
+      statusEl.textContent = `✓ אתה בגרסה העדכונית (${currentVersion})`;
+      btn.disabled = false;
+    }
+  } catch (e) {
+    statusEl.textContent = 'שגיאה בבדיקה – בדוק חיבור לאינטרנט';
+    btn.disabled = false;
   }
 }
