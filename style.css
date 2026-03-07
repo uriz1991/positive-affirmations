@@ -7,12 +7,26 @@
 :root {
   --bg-primary: #1a1a2e;
   --bg-secondary: #16213e;
+  --bg-tertiary: #0f3460;
   --accent: #6c63ff;
   --accent-light: #a29bfe;
   --text-primary: #ffffff;
   --text-secondary: #b8b8d4;
   --card-bg: rgba(255, 255, 255, 0.08);
   --card-border: rgba(255, 255, 255, 0.12);
+  --font-scale: 1;
+}
+
+body.light-mode {
+  --bg-primary: #f0f4ff;
+  --bg-secondary: #e8eeff;
+  --bg-tertiary: #dde8ff;
+  --accent: #6c63ff;
+  --accent-light: #5a52d5;
+  --text-primary: #1a1a2e;
+  --text-secondary: #555577;
+  --card-bg: rgba(0, 0, 0, 0.06);
+  --card-border: rgba(0, 0, 0, 0.12);
 }
 
 html, body {
@@ -22,7 +36,8 @@ html, body {
 
 body {
   font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
-  background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 50%, #0f3460 100%);
+  background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 50%, var(--bg-tertiary) 100%);
+  transition: background 0.3s ease, color 0.3s ease;
   color: var(--text-primary);
   direction: rtl;
   text-align: right;
@@ -114,7 +129,7 @@ body {
 }
 
 .affirmation-text {
-  font-size: clamp(1.2rem, 5vw, 1.8rem);
+  font-size: calc(clamp(1.2rem, 5vw, 1.8rem) * var(--font-scale));
   font-weight: 600;
   line-height: 1.5;
   max-width: 600px;
@@ -254,6 +269,65 @@ body {
   font-size: 1.2rem;
   cursor: pointer;
   padding: 6px;
+}
+
+.theme-btn {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 6px;
+}
+
+.streak-badge {
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+
+.favorite-btn {
+  background: none;
+  border: none;
+  font-size: 1.8rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  margin-top: 12px;
+  transition: color 0.2s ease, transform 0.2s ease;
+  line-height: 1;
+}
+
+.favorite-btn.active {
+  color: #ff6b6b;
+}
+
+.favorite-btn:active {
+  transform: scale(1.3);
+}
+
+.font-size-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+}
+
+.font-size-row input[type="range"] {
+  flex: 1;
+  accent-color: var(--accent);
+}
+
+.font-size-label-small {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.font-size-label-large {
+  font-size: 1.2rem;
+  color: var(--text-secondary);
 }
 
 /* Camera section */
@@ -618,7 +692,7 @@ body {
 /* Desktop */
 @media (min-width: 768px) {
   .affirmation-text {
-    font-size: 2.2rem;
+    font-size: calc(2.2rem * var(--font-scale));
   }
 
   .settings-panel {

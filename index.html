@@ -17,13 +17,16 @@
   <!-- Header -->
   <header class="header">
     <button class="settings-btn" id="settingsBtn" aria-label="הגדרות">&#9881;</button>
+    <button class="theme-btn" id="themeBtn" aria-label="החלף ערכת צבעים">&#9728;</button>
     <h1>אמירות חיוביות</h1>
     <p class="subtitle">כל רגע הוא הזדמנות להאמין</p>
+    <div class="streak-badge" id="streakBadge" style="display:none">&#128293; <span id="streakCount">1</span> ימים ברצף</div>
   </header>
 
   <!-- Category filter -->
   <div class="categories" id="categories">
     <button class="category-chip active" data-category="all">הכל</button>
+    <button class="category-chip" data-category="favorites" id="favoritesChip" style="display:none">&#9829; מועדפים</button>
     <button class="category-chip" data-category="torah">אמונה יהודית</button>
     <button class="category-chip" data-category="nachman">רבי נחמן מברסלב</button>
     <button class="category-chip" data-category="faith">אמונה והשגחה</button>
@@ -40,6 +43,7 @@
   <main class="affirmation-container">
     <div class="category-badge" id="currentCategory">אמונה והשגחה</div>
     <p class="affirmation-text animate-in" id="affirmationText">הכל מדויק לי</p>
+    <button class="favorite-btn" id="favoriteBtn" aria-label="מועדף">&#9825;</button>
   </main>
 
   <!-- Action buttons -->
@@ -157,6 +161,15 @@
     </div>
 
     <div class="setting-group">
+      <h3>&#128284; גודל טקסט</h3>
+      <div class="font-size-row">
+        <span class="font-size-label-small">א</span>
+        <input type="range" id="fontSizeSlider" min="80" max="150" value="100" step="10">
+        <span class="font-size-label-large">א</span>
+      </div>
+    </div>
+
+    <div class="setting-group">
       <h3>&#128260; עדכון גרסה</h3>
       <button class="btn btn-secondary" id="checkUpdateBtn" style="font-size: 0.85rem;">
         &#128269; בדוק אם קיים עדכון
@@ -165,8 +178,9 @@
     </div>
 
     <div class="setting-group" style="opacity: 0.5; text-align: center; font-size: 0.75rem;">
-      <p>גרסה: <span id="appVersion">1.1.1</span></p>
-      <p>עדכון אחרון: <span id="appLastUpdate">2026-03-05</span></p>
+      <p>גרסה: <span id="appVersion">1.2.0</span></p>
+      <p>עדכון אחרון: <span id="appLastUpdate">2026-03-06</span></p>
+
     </div>
   </div>
 
