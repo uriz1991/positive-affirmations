@@ -11,6 +11,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   await loadAffirmations();
   loadEnabledCategories();
   updateCategoryChips();
+  loadTheme();
+  loadFontSize();
+  updateStreak();
+  updateFavoritesChip();
   showRandomAffirmation();
   setupEventListeners();
   loadSettings();
@@ -55,7 +59,12 @@ function showRandomAffirmation() {
   }
 
   // Filter by selected category chip
-  if (currentCategory !== 'all') {
+  if (currentCategory === 'favorites') {
+    const favs = getFavorites();
+    pool = affirmationsData.affirmations.concat(
+      getPersonalAffirmations().map(text => ({ text, category: 'personal' }))
+    ).filter(a => favs.includes(a.text));
+  } else if (currentCategory !== 'all') {
     pool = pool.filter(a => a.category === currentCategory);
   }
 
@@ -94,6 +103,8 @@ function showRandomAffirmation() {
   if (cameraAffirmation) {
     cameraAffirmation.textContent = next.text;
   }
+
+  setTimeout(updateFavoriteBtn, 350); // after animation
 }
 
 // ===== Event Listeners =====
@@ -169,6 +180,19 @@ function setupEventListeners() {
 
   // Check for update
   document.getElementById('checkUpdateBtn').addEventListener('click', checkForUpdate);
+
+  // Theme toggle
+  document.getElementById('themeBtn').addEventListener('click', toggleTheme);
+
+  // Favorite button
+  document.getElementById('favoriteBtn').addEventListener('click', toggleFavorite);
+
+  // Font size slider
+  document.getElementById('fontSizeSlider').addEventListener('input', (e) => {
+    const scale = e.target.value / 100;
+    document.documentElement.style.setProperty('--font-scale', scale);
+    localStorage.setItem('font-scale', e.target.value);
+  });
 }
 
 // ===== Camera =====
@@ -599,7 +623,102 @@ function syncSettingsToSW() {
   } catch {}
 }
 
+// ===== Theme =====
+function loadTheme() {
+  const theme = localStorage.getItem('theme') || 'dark';
+  if (theme === 'light') {
+    document.body.classList.add('light-mode');
+    document.getElementById('themeBtn').textContent = '☽';
+  } else {
+    document.getElementById('themeBtn').textContent = '☀';
+  }
+}
+
+function toggleTheme() {
+  const isLight = document.body.classList.toggle('light-mode');
+  localStorage.setItem('theme', isLight ? 'light' : 'dark');
+  document.getElementById('themeBtn').textContent = isLight ? '☽' : '☀';
+}
+
+// ===== Streak =====
+function updateStreak() {
+  const today = new Date().toDateString();
+  let data = {};
+  try { data = JSON.parse(localStorage.getItem('streak-data') || '{}'); } catch {}
+
+  if (data.lastDate !== today) {
+    const yesterday = new Date(Date.now() - 86400000).toDateString();
+    data.count = (data.lastDate === yesterday) ? (data.count || 0) + 1 : 1;
+    data.lastDate = today;
+    localStorage.setItem('streak-data', JSON.stringify(data));
+  }
+
+  const count = data.count || 1;
+  if (count >= 2) {
+    document.getElementById('streakCount').textContent = count;
+    document.getElementById('streakBadge').style.display = '';
+  }
+}
+
+// ===== Favorites =====
+function getFavorites() {
+  try { return JSON.parse(localStorage.getItem('favorites') || '[]'); } catch { return []; }
+}
+
+function toggleFavorite() {
+  if (!currentAffirmation) return;
+  const text = currentAffirmation.text;
+  const favs = getFavorites();
+  const idx = favs.indexOf(text);
+  if (idx === -1) {
+    favs.push(text);
+    showToast('נשמר למועדפים ♥');
+  } else {
+    favs.splice(idx, 1);
+    showToast('הוסר מהמועדפים');
+  }
+  localStorage.setItem('favorites', JSON.stringify(favs));
+  updateFavoriteBtn();
+  updateFavoritesChip();
+}
+
+function updateFavoriteBtn() {
+  const btn = document.getElementById('favoriteBtn');
+  const favs = getFavorites();
+  const isFav = currentAffirmation && favs.includes(currentAffirmation.text);
+  btn.innerHTML = isFav ? '&#9829;' : '&#9825;';
+  btn.classList.toggle('active', isFav);
+}
+
+function updateFavoritesChip() {
+  const chip = document.getElementById('favoritesChip');
+  const hasFavs = getFavorites().length > 0;
+  chip.style.display = hasFavs ? '' : 'none';
+  if (!hasFavs && currentCategory === 'favorites') {
+    currentCategory = 'all';
+    document.querySelectorAll('.category-chip').forEach(c => c.classList.remove('active'));
+    document.querySelector('.category-chip[data-category="all"]').classList.add('active');
+  }
+}
+
+// ===== Font Size =====
+function loadFontSize() {
+  const saved = localStorage.getItem('font-scale') || '100';
+  document.getElementById('fontSizeSlider').value = saved;
+  document.documentElement.style.setProperty('--font-scale', saved / 100);
+}
+
 // ===== Check for Update =====
+function compareVersions(a, b) {
+  const pa = a.split('.').map(Number);
+  const pb = b.split('.').map(Number);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const diff = (pa[i] || 0) - (pb[i] || 0);
+    if (diff !== 0) return diff;
+  }
+  return 0;
+}
+
 async function checkForUpdate() {
   const btn = document.getElementById('checkUpdateBtn');
   const statusEl = document.getElementById('updateStatus');
@@ -619,7 +738,9 @@ async function checkForUpdate() {
     const latestVersion = match[1];
     const currentVersion = document.getElementById('appVersion').textContent.trim();
 
-    if (latestVersion !== currentVersion) {
+    const isNewer = compareVersions(latestVersion, currentVersion) > 0;
+
+    if (isNewer) {
       statusEl.textContent = `עדכון זמין (${latestVersion}) – מנקה ומרענן...`;
 
       // Clear all caches
