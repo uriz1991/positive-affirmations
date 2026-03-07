@@ -65,7 +65,7 @@ function showRandomAffirmation() {
       getPersonalAffirmations().map(text => ({ text, category: 'personal' }))
     ).filter(a => favs.includes(a.text));
   } else if (currentCategory !== 'all') {
-    pool = pool.filter(a => a.category === currentCategory);
+    pool = pool.filter(a => a.category === currentCategory || a.category === 'personal');
   }
 
   if (pool.length === 0) {
@@ -492,6 +492,21 @@ function addPersonalAffirmation() {
 
   input.value = '';
   renderPersonalList();
+
+  // Show the new affirmation immediately on the main screen
+  currentAffirmation = { text, category: 'personal' };
+  const textEl = document.getElementById('affirmationText');
+  const badgeEl = document.getElementById('currentCategory');
+  textEl.classList.add('fade-out');
+  setTimeout(() => {
+    textEl.textContent = text;
+    badgeEl.textContent = 'משפט אישי';
+    textEl.classList.remove('fade-out');
+    textEl.classList.add('fade-in');
+    setTimeout(() => textEl.classList.remove('fade-in'), 50);
+  }, 300);
+  updateFavoriteBtn();
+  showToast('המשפט נוסף ומוצג ✓');
 }
 
 function removePersonalAffirmation(index) {
