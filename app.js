@@ -193,6 +193,25 @@ function setupEventListeners() {
     document.documentElement.style.setProperty('--font-scale', scale);
     localStorage.setItem('font-scale', e.target.value);
   });
+
+  // Export favorites
+  document.getElementById('exportFavoritesBtn').addEventListener('click', exportFavorites);
+
+  // Swipe gesture on affirmation container
+  let touchStartX = 0;
+  let touchStartY = 0;
+  const swipeArea = document.querySelector('.affirmation-container');
+  swipeArea.addEventListener('touchstart', (e) => {
+    touchStartX = e.touches[0].clientX;
+    touchStartY = e.touches[0].clientY;
+  }, { passive: true });
+  swipeArea.addEventListener('touchend', (e) => {
+    const dx = e.changedTouches[0].clientX - touchStartX;
+    const dy = e.changedTouches[0].clientY - touchStartY;
+    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) {
+      showRandomAffirmation();
+    }
+  }, { passive: true });
 }
 
 // ===== Camera =====
@@ -698,6 +717,20 @@ function updateFavoritesChip() {
     currentCategory = 'all';
     document.querySelectorAll('.category-chip').forEach(c => c.classList.remove('active'));
     document.querySelector('.category-chip[data-category="all"]').classList.add('active');
+  }
+}
+
+function exportFavorites() {
+  const favs = getFavorites();
+  if (favs.length === 0) {
+    showToast('אין מועדפים לייצוא');
+    return;
+  }
+  const text = 'המשפטים המועדפים שלי:\n\n' + favs.map((f, i) => `${i + 1}. ${f}`).join('\n');
+  if (navigator.share) {
+    navigator.share({ title: 'המועדפים שלי', text });
+  } else {
+    navigator.clipboard.writeText(text).then(() => showToast('המועדפים הועתקו ללוח ✓'));
   }
 }
 
