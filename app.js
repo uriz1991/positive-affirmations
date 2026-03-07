@@ -193,6 +193,25 @@ function setupEventListeners() {
     document.documentElement.style.setProperty('--font-scale', scale);
     localStorage.setItem('font-scale', e.target.value);
   });
+
+  // Export favorites
+  document.getElementById('exportFavoritesBtn').addEventListener('click', exportFavorites);
+
+  // Swipe gesture on affirmation container
+  let touchStartX = 0;
+  let touchStartY = 0;
+  const swipeArea = document.querySelector('.affirmation-container');
+  swipeArea.addEventListener('touchstart', (e) => {
+    touchStartX = e.touches[0].clientX;
+    touchStartY = e.touches[0].clientY;
+  }, { passive: true });
+  swipeArea.addEventListener('touchend', (e) => {
+    const dx = e.changedTouches[0].clientX - touchStartX;
+    const dy = e.changedTouches[0].clientY - touchStartY;
+    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) {
+      showRandomAffirmation();
+    }
+  }, { passive: true });
 }
 
 // ===== Camera =====
@@ -701,6 +720,20 @@ function updateFavoritesChip() {
   }
 }
 
+function exportFavorites() {
+  const favs = getFavorites();
+  if (favs.length === 0) {
+    showToast('אין מועדפים לייצוא');
+    return;
+  }
+  const text = 'המשפטים המועדפים שלי:\n\n' + favs.map((f, i) => `${i + 1}. ${f}`).join('\n');
+  if (navigator.share) {
+    navigator.share({ title: 'המועדפים שלי', text });
+  } else {
+    navigator.clipboard.writeText(text).then(() => showToast('המועדפים הועתקו ללוח ✓'));
+  }
+}
+
 // ===== Font Size =====
 function loadFontSize() {
   const saved = localStorage.getItem('font-scale') || '100';
@@ -709,6 +742,16 @@ function loadFontSize() {
 }
 
 // ===== Check for Update =====
+function compareVersions(a, b) {
+  const pa = a.split('.').map(Number);
+  const pb = b.split('.').map(Number);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const diff = (pa[i] || 0) - (pb[i] || 0);
+    if (diff !== 0) return diff;
+  }
+  return 0;
+}
+
 async function checkForUpdate() {
   const btn = document.getElementById('checkUpdateBtn');
   const statusEl = document.getElementById('updateStatus');
@@ -728,7 +771,9 @@ async function checkForUpdate() {
     const latestVersion = match[1];
     const currentVersion = document.getElementById('appVersion').textContent.trim();
 
-    if (latestVersion !== currentVersion) {
+    const isNewer = compareVersions(latestVersion, currentVersion) > 0;
+
+    if (isNewer) {
       statusEl.textContent = `עדכון זמין (${latestVersion}) – מנקה ומרענן...`;
 
       // Clear all caches
