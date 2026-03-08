@@ -5,40 +5,84 @@ let currentCategory = 'all';
 let currentAffirmation = null;
 let cameraStream = null;
 let enabledCategories = null; // null = all enabled
+let currentLang = 'he';
+let translations = {};
+
+// ===== i18n =====
+function t(key) {
+  return translations[key] || key;
+}
+
+async function loadLanguage(lang) {
+  const affFile = lang === 'he' ? './data/affirmations.json' : `./data/affirmations-${lang}.json`;
+  try {
+    const [localeRes, affirmRes] = await Promise.all([
+      fetch(`./locales/${lang}.json`),
+      fetch(affFile)
+    ]);
+    translations = await localeRes.json();
+    affirmationsData = await affirmRes.json();
+  } catch {
+    // Fallback
+    translations = {};
+    if (!affirmationsData) {
+      affirmationsData = {
+        categories: { faith: 'אמונה והשגחה' },
+        affirmations: [{ text: 'הכל מדויק לי', category: 'faith' }]
+      };
+    }
+  }
+
+  currentLang = lang;
+  localStorage.setItem('app-language', lang);
+
+  const isRTL = lang === 'he';
+  document.documentElement.dir = isRTL ? 'rtl' : 'ltr';
+  document.documentElement.lang = lang;
+  document.title = t('appTitle');
+
+  applyTranslations();
+  renderCategoryChips();
+  loadEnabledCategories();
+  updateCategoryChips();
+  showRandomAffirmation();
+  updateLangButtons();
+}
+
+function applyTranslations() {
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.dataset.i18n;
+    if (key && translations[key]) el.textContent = translations[key];
+  });
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+    const key = el.dataset.i18nPlaceholder;
+    if (key && translations[key]) el.placeholder = translations[key];
+  });
+  document.querySelectorAll('[data-i18n-aria]').forEach(el => {
+    const key = el.dataset.i18nAria;
+    if (key && translations[key]) el.setAttribute('aria-label', translations[key]);
+  });
+}
+
+function updateLangButtons() {
+  document.querySelectorAll('.lang-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.lang === currentLang);
+  });
+}
 
 // ===== Initialize =====
 document.addEventListener('DOMContentLoaded', async () => {
-  await loadAffirmations();
-  loadEnabledCategories();
-  updateCategoryChips();
+  setupEventListeners();
+  const savedLang = localStorage.getItem('app-language') || 'he';
+  await loadLanguage(savedLang);
   loadTheme();
   loadFontSize();
   updateStreak();
-  updateFavoritesChip();
-  showRandomAffirmation();
-  setupEventListeners();
   loadSettings();
   loadPersonalAffirmations();
   registerServiceWorker();
   startReminderChecker();
 });
-
-// ===== Load Affirmations =====
-async function loadAffirmations() {
-  try {
-    const response = await fetch('./data/affirmations.json');
-    affirmationsData = await response.json();
-  } catch (e) {
-    // Fallback if fetch fails (offline, first load)
-    affirmationsData = {
-      categories: { faith: 'אמונה והשגחה' },
-      affirmations: [
-        { text: 'הכל מדויק לי', category: 'faith' },
-        { text: 'אני בדיוק במקום הנכון', category: 'faith' }
-      ]
-    };
-  }
-}
 
 // ===== Show Random Affirmation =====
 function showRandomAffirmation() {
@@ -61,7 +105,6 @@ function showRandomAffirmation() {
   // Filter by selected category chip
   if (currentCategory === 'favorites') {
     const favs = getFavorites();
-    // Respect enabledCategories: start from the already-filtered pool (+ personal)
     pool = pool.filter(a => favs.includes(a.text));
   } else if (currentCategory !== 'all') {
     pool = pool.filter(a => a.category === currentCategory || a.category === 'personal');
@@ -85,7 +128,7 @@ function showRandomAffirmation() {
   setTimeout(() => {
     textEl.textContent = next.text;
     const categoryName = next.category === 'personal'
-      ? 'משפט אישי'
+      ? t('personalItem')
       : (affirmationsData.categories[next.category] || next.category);
     badgeEl.textContent = categoryName;
 
@@ -106,16 +149,52 @@ function showRandomAffirmation() {
   setTimeout(updateFavoriteBtn, 350); // after animation
 }
 
+// ===== Category Chips (dynamic) =====
+function renderCategoryChips() {
+  const container = document.getElementById('categories');
+  const wasActive = currentCategory;
+  container.innerHTML = '';
+
+  // "All" chip
+  const allChip = document.createElement('button');
+  allChip.className = 'category-chip' + (wasActive === 'all' ? ' active' : '');
+  allChip.dataset.category = 'all';
+  allChip.textContent = t('categoryAll');
+  container.appendChild(allChip);
+
+  // "Favorites" chip
+  const favChip = document.createElement('button');
+  favChip.id = 'favoritesChip';
+  favChip.className = 'category-chip' + (wasActive === 'favorites' ? ' active' : '');
+  favChip.dataset.category = 'favorites';
+  favChip.innerHTML = '&#9829; ' + t('categoryFavorites');
+  favChip.style.display = getFavorites().length > 0 ? '' : 'none';
+  container.appendChild(favChip);
+
+  // Category chips from affirmations data
+  Object.entries(affirmationsData.categories).forEach(([key, name]) => {
+    const chip = document.createElement('button');
+    chip.className = 'category-chip' + (wasActive === key ? ' active' : '');
+    chip.dataset.category = key;
+    chip.textContent = name;
+    container.appendChild(chip);
+  });
+
+  // Reset active category if current one no longer exists
+  const stillExists = wasActive === 'all' || wasActive === 'favorites' ||
+    Object.keys(affirmationsData.categories).includes(wasActive);
+  if (!stillExists) currentCategory = 'all';
+}
+
 // ===== Event Listeners =====
 function setupEventListeners() {
   // New affirmation button
   document.getElementById('newAffirmationBtn').addEventListener('click', showRandomAffirmation);
 
-  // Category chips
+  // Category chips (event delegation)
   document.getElementById('categories').addEventListener('click', (e) => {
     const chip = e.target.closest('.category-chip');
     if (!chip) return;
-
     document.querySelectorAll('.category-chip').forEach(c => c.classList.remove('active'));
     chip.classList.add('active');
     currentCategory = chip.dataset.category;
@@ -153,7 +232,6 @@ function setupEventListeners() {
   // Donate button
   document.getElementById('donateBtn').addEventListener('click', (e) => {
     e.preventDefault();
-    // Replace with your actual PayPal/Buy Me a Coffee link
     window.open('https://buymeacoffee.com/uriel.zion', '_blank', 'noopener,noreferrer');
   });
 
@@ -161,6 +239,15 @@ function setupEventListeners() {
   document.getElementById('settingsBtn').addEventListener('click', openSettings);
   document.getElementById('settingsClose').addEventListener('click', closeSettings);
   document.getElementById('settingsBackdrop').addEventListener('click', closeSettings);
+
+  // Language selector
+  document.getElementById('langSelector').addEventListener('click', async (e) => {
+    const btn = e.target.closest('.lang-btn');
+    if (!btn || btn.dataset.lang === currentLang) return;
+    currentCategory = 'all';
+    await loadLanguage(btn.dataset.lang);
+    renderCategoryToggles(); // re-render in new language
+  });
 
   // Notification buttons
   document.getElementById('enableNotifications').addEventListener('click', requestNotificationPermission);
@@ -230,11 +317,9 @@ async function openCamera() {
     const video = document.getElementById('cameraVideo');
     video.srcObject = stream;
     document.getElementById('cameraSection').classList.add('active');
-
-    // Update camera affirmation text
     document.getElementById('cameraAffirmation').textContent = currentAffirmation.text;
   } catch (err) {
-    alert('לא ניתן לגשת למצלמה. אנא אפשר גישה למצלמה בהגדרות הדפדפן.');
+    alert(t('cameraError'));
   }
 }
 
@@ -250,27 +335,17 @@ function closeCamera() {
 async function shareAffirmation() {
   const text = currentAffirmation.text;
   const appUrl = 'https://uriz1991.github.io/positive-affirmations/';
-  const shareText = `"${text}"\n\nאמירות חיוביות יומיות 👉 ${appUrl}`;
-  const shareData = {
-    title: 'אמירות חיוביות',
-    text: shareText,
-    url: appUrl,
-  };
+  const shareText = `"${text}"\n\n${t('shareText')} 👉 ${appUrl}`;
+  const shareData = { title: t('shareTitle'), text: shareText, url: appUrl };
 
   if (navigator.share) {
-    try {
-      await navigator.share(shareData);
-    } catch (err) {
-      // User cancelled share
-    }
+    try { await navigator.share(shareData); } catch {}
   } else {
-    // Fallback: copy to clipboard
     try {
       await navigator.clipboard.writeText(shareText);
-      showToast('המשפט הועתק! אפשר להדביק ולשתף');
-    } catch (err) {
-      // Fallback for older browsers
-      prompt('העתק את המשפט:', shareText);
+      showToast(t('toastCopied'));
+    } catch {
+      prompt(t('copyPrompt'), shareText);
     }
   }
 }
@@ -319,7 +394,6 @@ function saveSettings() {
 
   localStorage.setItem('reminder-settings', JSON.stringify(settings));
 
-  // Mirror to Cache Storage so SW can read settings when app is closed
   if (navigator.serviceWorker?.controller) {
     navigator.serviceWorker.controller.postMessage({ type: 'SAVE_SETTINGS', settings });
   }
@@ -354,69 +428,54 @@ function updateNotificationStatus() {
   const statusEl = document.getElementById('notificationStatus');
   if (!statusEl) return;
   if (!('Notification' in window)) {
-    statusEl.textContent = 'הדפדפן שלך לא תומך בהתראות';
+    statusEl.textContent = t('notifNotSupported');
     return;
   }
   switch (Notification.permission) {
-    case 'granted':
-      statusEl.textContent = '✓ התראות מופעלות';
-      break;
-    case 'denied':
-      statusEl.textContent = '✗ ההרשאה נחסמה – יש לאפשר בהגדרות הדפדפן';
-      break;
-    default:
-      statusEl.textContent = '';
+    case 'granted':  statusEl.textContent = t('notifGranted'); break;
+    case 'denied':   statusEl.textContent = t('notifBlocked'); break;
+    default:         statusEl.textContent = '';
   }
 }
 
 async function requestNotificationPermission() {
   if (!('Notification' in window)) {
-    alert('הדפדפן שלך לא תומך בהתראות');
+    alert(t('notifNotSupported'));
     return;
   }
 
   const permission = await Notification.requestPermission();
   updateNotificationStatus();
   if (permission === 'granted') {
-    showToast('התראות הופעלו בהצלחה! תקבל תזכורות בשעות שהגדרת');
+    showToast(t('notifEnabled'));
     saveSettings();
     startReminderChecker();
-    registerPeriodicSync(); // enable background notifications when app is closed
+    registerPeriodicSync();
   } else {
-    showToast('לא ניתנה הרשאה להתראות');
+    showToast(t('notifDenied'));
   }
 }
 
-// Register Periodic Background Sync so SW can fire reminders even when app is closed.
-// Requires: installed PWA + Chrome on Android + good engagement score.
 async function registerPeriodicSync() {
   if (!('serviceWorker' in navigator)) return;
   try {
     const registration = await navigator.serviceWorker.ready;
     if (!('periodicSync' in registration)) return;
-
     const status = await navigator.permissions.query({ name: 'periodic-background-sync' });
     if (status.state === 'granted') {
       await registration.periodicSync.register('affirmation-reminder', {
-        minInterval: 30 * 60 * 1000 // browser may fire less often based on engagement
+        minInterval: 30 * 60 * 1000
       });
     }
-  } catch (e) {
-    // Not supported — polling fallback (startReminderChecker) still works when app is open
-  }
+  } catch {}
 }
 
 // ===== Reminder Checker =====
-// Checks every 30 seconds if it's time for a reminder
 let reminderInterval = null;
 
 function startReminderChecker() {
   if (reminderInterval) clearInterval(reminderInterval);
-
-  // Check immediately on start
   checkReminders();
-
-  // Then check every 30 seconds
   reminderInterval = setInterval(checkReminders, 30000);
 }
 
@@ -433,33 +492,25 @@ function checkReminders() {
   const currentTime = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
   const today = now.toDateString();
 
-  // Get already-sent reminders for today
   let sent = {};
   try {
     const sentData = localStorage.getItem('reminders-sent');
     sent = sentData ? JSON.parse(sentData) : {};
-    // Reset if it's a new day
-    if (sent._date !== today) {
-      sent = { _date: today };
-    }
+    if (sent._date !== today) sent = { _date: today };
   } catch {
     sent = { _date: today };
   }
 
   const periods = {
-    morning: 'בוקר טוב!',
-    noon: 'תזכורת צהריים',
-    evening: 'ערב טוב!'
+    morning: t('notifMorning'),
+    noon:    t('notifNoon'),
+    evening: t('notifEvening')
   };
 
   Object.entries(periods).forEach(([period, title]) => {
     if (!settings[period] || !settings[period].enabled) return;
-    if (sent[period]) return; // Already sent today
-
-    const reminderTime = settings[period].time;
-
-    // Check if current time matches (within a 2-minute window)
-    if (isTimeMatch(currentTime, reminderTime)) {
+    if (sent[period]) return;
+    if (isTimeMatch(currentTime, settings[period].time)) {
       sendNotification(title, period);
       sent[period] = true;
       localStorage.setItem('reminders-sent', JSON.stringify(sent));
@@ -472,24 +523,21 @@ function isTimeMatch(current, target) {
   const [tH, tM] = target.split(':').map(Number);
   const currentMinutes = cH * 60 + cM;
   const targetMinutes = tH * 60 + tM;
-  // Match at the target minute or the minute after (checker runs every 30s,
-  // so we tolerate a 1-minute drift to avoid missing a reminder).
   return currentMinutes === targetMinutes || currentMinutes === targetMinutes + 1;
 }
 
 function sendNotification(title, period) {
+  const body = currentAffirmation ? currentAffirmation.text : '';
   if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-    navigator.serviceWorker.controller.postMessage({ type: 'SHOW_NOTIFICATION', title });
-    // Tell SW this period was already handled — prevents duplicate from periodicSync
+    navigator.serviceWorker.controller.postMessage({ type: 'SHOW_NOTIFICATION', title, body });
     if (period) {
       navigator.serviceWorker.controller.postMessage({ type: 'MARK_SENT', period });
     }
   } else {
-    // Fallback: show notification directly
     new Notification(title, {
-      body: currentAffirmation ? currentAffirmation.text : 'הכל מדויק לי',
-      dir: 'rtl',
-      lang: 'he'
+      body,
+      dir: currentLang === 'he' ? 'rtl' : 'ltr',
+      lang: currentLang
     });
   }
 }
@@ -512,7 +560,7 @@ function addPersonalAffirmation() {
 
   const personal = getPersonalAffirmations();
   if (personal.length >= 50) {
-    showToast('ניתן להוסיף עד 50 משפטים אישיים');
+    showToast(t('personalMax'));
     return;
   }
   personal.push(text);
@@ -521,20 +569,19 @@ function addPersonalAffirmation() {
   input.value = '';
   renderPersonalList();
 
-  // Show the new affirmation immediately on the main screen
   currentAffirmation = { text, category: 'personal' };
   const textEl = document.getElementById('affirmationText');
   const badgeEl = document.getElementById('currentCategory');
   textEl.classList.add('fade-out');
   setTimeout(() => {
     textEl.textContent = text;
-    badgeEl.textContent = 'משפט אישי';
+    badgeEl.textContent = t('personalItem');
     textEl.classList.remove('fade-out');
     textEl.classList.add('fade-in');
     setTimeout(() => textEl.classList.remove('fade-in'), 50);
   }, 300);
   updateFavoriteBtn();
-  showToast('המשפט נוסף ומוצג ✓');
+  showToast(t('personalAdded'));
 }
 
 function removePersonalAffirmation(index) {
@@ -564,7 +611,7 @@ function renderPersonalList() {
 
     const btn = document.createElement('button');
     btn.innerHTML = '&#10005;';
-    btn.setAttribute('aria-label', 'מחק');
+    btn.setAttribute('aria-label', t('deleteBtn'));
     btn.addEventListener('click', () => removePersonalAffirmation(i));
 
     div.appendChild(span);
@@ -579,9 +626,9 @@ function loadEnabledCategories() {
     const saved = localStorage.getItem('enabled-categories');
     if (saved) {
       const parsed = JSON.parse(saved);
-      enabledCategories = Array.isArray(parsed) ? parsed : null;
+      enabledCategories = Array.isArray(parsed) && parsed.length > 0 ? parsed : null;
     } else {
-      enabledCategories = null; // null = all enabled
+      enabledCategories = null;
     }
   } catch {
     enabledCategories = null;
@@ -606,10 +653,9 @@ function renderCategoryToggles() {
   if (!container || !affirmationsData) return;
   container.innerHTML = '';
 
-  const allCategories = Object.entries(affirmationsData.categories);
-  const allEnabled = !enabledCategories; // null = all
+  const allEnabled = !enabledCategories;
 
-  allCategories.forEach(([key, name]) => {
+  Object.entries(affirmationsData.categories).forEach(([key, name]) => {
     const row = document.createElement('div');
     row.className = 'category-toggle-row';
 
@@ -640,18 +686,15 @@ function updateCategoryChips() {
   const chips = document.querySelectorAll('.category-chip[data-category]');
   chips.forEach(chip => {
     const cat = chip.dataset.category;
-    if (cat === 'all') {
-      chip.style.display = '';
-      return;
-    }
+    if (cat === 'all' || cat === 'favorites') return;
     if (!enabledCategories || enabledCategories.includes(cat)) {
       chip.style.display = '';
     } else {
       chip.style.display = 'none';
-      // If this hidden chip was active, switch to "all"
       if (chip.classList.contains('active')) {
         chip.classList.remove('active');
-        document.querySelector('.category-chip[data-category="all"]').classList.add('active');
+        const allChip = document.querySelector('.category-chip[data-category="all"]');
+        if (allChip) allChip.classList.add('active');
         currentCategory = 'all';
       }
     }
@@ -665,20 +708,16 @@ async function registerServiceWorker() {
     await navigator.serviceWorker.register('./sw.js');
     await navigator.serviceWorker.ready;
 
-    // If SW is already controlling this page, sync immediately
     if (navigator.serviceWorker.controller) {
       syncSettingsToSW();
     }
 
-    // On first install the SW calls clients.claim() which fires controllerchange.
-    // Sync settings once the SW takes control.
     navigator.serviceWorker.addEventListener('controllerchange', syncSettingsToSW, { once: true });
   } catch (err) {
     console.log('Service Worker registration failed:', err);
   }
 }
 
-// Push current localStorage settings into SW Cache Storage
 function syncSettingsToSW() {
   if (!navigator.serviceWorker?.controller) return;
   const saved = localStorage.getItem('reminder-settings');
@@ -740,10 +779,10 @@ function toggleFavorite() {
   const idx = favs.indexOf(text);
   if (idx === -1) {
     favs.push(text);
-    showToast('נשמר למועדפים ♥');
+    showToast(t('toastFavAdded'));
   } else {
     favs.splice(idx, 1);
-    showToast('הוסר מהמועדפים');
+    showToast(t('toastFavRemoved'));
   }
   localStorage.setItem('favorites', JSON.stringify(favs));
   updateFavoriteBtn();
@@ -760,26 +799,28 @@ function updateFavoriteBtn() {
 
 function updateFavoritesChip() {
   const chip = document.getElementById('favoritesChip');
+  if (!chip) return;
   const hasFavs = getFavorites().length > 0;
   chip.style.display = hasFavs ? '' : 'none';
   if (!hasFavs && currentCategory === 'favorites') {
     currentCategory = 'all';
     document.querySelectorAll('.category-chip').forEach(c => c.classList.remove('active'));
-    document.querySelector('.category-chip[data-category="all"]').classList.add('active');
+    const allChip = document.querySelector('.category-chip[data-category="all"]');
+    if (allChip) allChip.classList.add('active');
   }
 }
 
 function exportFavorites() {
   const favs = getFavorites();
   if (favs.length === 0) {
-    showToast('אין מועדפים לייצוא');
+    showToast(t('toastFavEmpty'));
     return;
   }
-  const text = 'המשפטים המועדפים שלי:\n\n' + favs.map((f, i) => `${i + 1}. ${f}`).join('\n');
+  const text = t('favListTitle') + '\n\n' + favs.map((f, i) => `${i + 1}. ${f}`).join('\n');
   if (navigator.share) {
-    navigator.share({ title: 'המועדפים שלי', text });
+    navigator.share({ title: t('favShareTitle'), text });
   } else {
-    navigator.clipboard.writeText(text).then(() => showToast('המועדפים הועתקו ללוח ✓'));
+    navigator.clipboard.writeText(text).then(() => showToast(t('toastFavCopied')));
   }
 }
 
@@ -806,10 +847,9 @@ async function checkForUpdate() {
   const statusEl = document.getElementById('updateStatus');
 
   btn.disabled = true;
-  statusEl.textContent = 'מחפש עדכונים...';
+  statusEl.textContent = t('updateChecking');
 
   try {
-    // Fetch sw.js fresh from network (bypass all caches)
     const response = await fetch('./sw.js?_=' + Date.now(), { cache: 'no-store' });
     if (!response.ok) throw new Error('network');
 
@@ -819,29 +859,23 @@ async function checkForUpdate() {
 
     const latestVersion = match[1];
     const currentVersion = document.getElementById('appVersion').textContent.trim();
-
     const isNewer = compareVersions(latestVersion, currentVersion) > 0;
 
     if (isNewer) {
-      statusEl.textContent = `עדכון זמין (${latestVersion}) – מנקה ומרענן...`;
-
-      // Clear all caches
+      statusEl.textContent = t('updateAvailable').replace('{v}', latestVersion);
       if ('caches' in window) {
         const keys = await caches.keys();
         await Promise.all(keys.map(k => caches.delete(k)));
       }
-
-      // Unregister SW so it reinstalls fresh
       const reg = await navigator.serviceWorker.getRegistration();
       if (reg) await reg.unregister();
-
       setTimeout(() => location.reload(true), 600);
     } else {
-      statusEl.textContent = `✓ אתה בגרסה העדכונית (${currentVersion})`;
+      statusEl.textContent = t('updateCurrent').replace('{v}', currentVersion);
       btn.disabled = false;
     }
-  } catch (e) {
-    statusEl.textContent = 'שגיאה בבדיקה – בדוק חיבור לאינטרנט';
+  } catch {
+    statusEl.textContent = t('updateError');
     btn.disabled = false;
   }
 }

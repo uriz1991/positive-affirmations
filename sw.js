@@ -129,7 +129,7 @@ async function checkAndNotifyFromBackground() {
 // ===== Messages from main app =====
 self.addEventListener('message', (event) => {
   if (event.data.type === 'SHOW_NOTIFICATION') {
-    event.waitUntil(showNotification(event.data.title));
+    event.waitUntil(showNotification(event.data.title, event.data.body));
 
   } else if (event.data.type === 'SAVE_SETTINGS') {
     // App saves settings → also mirror to Cache Storage so SW can read them
@@ -153,31 +153,36 @@ self.addEventListener('message', (event) => {
 });
 
 // ===== Show Notification =====
-async function showNotification(title) {
-  try {
-    const cache = await caches.open(CACHE_NAME);
-    const response = await cache.match('./data/affirmations.json');
-    if (response) {
-      const data = await response.json();
-      const affirmations = data.affirmations;
-      const random = affirmations[Math.floor(Math.random() * affirmations.length)];
+async function showNotification(title, passedBody) {
+  let body = passedBody || '';
+  let dir = 'rtl';
+  let lang = 'he';
 
-      await self.registration.showNotification(title, {
-        body: random.text,
-        icon: './assets/icon-192.png',
-        badge: './assets/icon-192.png',
-        dir: 'rtl',
-        lang: 'he',
-        tag: 'affirmation-' + title,
-        renotify: true
-      });
-    }
-  } catch (e) {
+  if (!body) {
+    // Fallback: pick random affirmation from cached data
+    try {
+      const cache = await caches.open(CACHE_NAME);
+      const response = await cache.match('./data/affirmations.json');
+      if (response) {
+        const data = await response.json();
+        const random = data.affirmations[Math.floor(Math.random() * data.affirmations.length)];
+        body = random.text;
+      }
+    } catch {}
+  }
+
+  try {
     await self.registration.showNotification(title, {
-      body: 'הכל מדויק לי',
-      dir: 'rtl',
-      lang: 'he'
+      body: body || '',
+      icon: './assets/icon-192.png',
+      badge: './assets/icon-192.png',
+      dir,
+      lang,
+      tag: 'affirmation-' + title,
+      renotify: true
     });
+  } catch (e) {
+    await self.registration.showNotification(title, { body: body || '' });
   }
 }
 

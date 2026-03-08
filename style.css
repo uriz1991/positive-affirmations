@@ -39,14 +39,19 @@ body {
   background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 50%, var(--bg-tertiary) 100%);
   transition: background 0.3s ease, color 0.3s ease;
   color: var(--text-primary);
-  direction: rtl;
-  text-align: right;
+  text-align: start;
   overflow: hidden;
   display: flex;
   flex-direction: column;
   height: 100vh;
   height: 100dvh;
 }
+
+/* Settings panel: RTL slides from right, LTR slides from left */
+[dir="rtl"] .settings-panel { right: -100%; left: auto; transition: right 0.3s ease; }
+[dir="rtl"] .settings-panel.active { right: 0; }
+[dir="ltr"] .settings-panel { left: -100%; right: auto; transition: left 0.3s ease; }
+[dir="ltr"] .settings-panel.active { left: 0; }
 
 /* Header */
 .header {
@@ -408,19 +413,13 @@ body {
 .settings-panel {
   position: fixed;
   top: 0;
-  right: -100%;
   width: 100%;
   max-width: 400px;
   height: 100%;
   background: var(--bg-primary);
   z-index: 90;
-  transition: right 0.3s ease;
   padding: 16px;
   overflow-y: auto;
-}
-
-.settings-panel.active {
-  right: 0;
 }
 
 .settings-backdrop {
@@ -652,6 +651,38 @@ body {
   background: var(--card-bg);
   color: var(--text-primary);
   border: 1px solid var(--card-border);
+}
+
+/* Language selector */
+.lang-selector {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.lang-btn {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  color: var(--text-primary);
+  padding: 7px 12px;
+  border-radius: 10px;
+  font-family: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.lang-btn:hover {
+  background: rgba(108, 99, 255, 0.15);
+  border-color: var(--accent);
+}
+
+.lang-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+  font-weight: 600;
 }
 
 /* Category toggles in settings */
