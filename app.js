@@ -61,9 +61,8 @@ function showRandomAffirmation() {
   // Filter by selected category chip
   if (currentCategory === 'favorites') {
     const favs = getFavorites();
-    pool = affirmationsData.affirmations.concat(
-      getPersonalAffirmations().map(text => ({ text, category: 'personal' }))
-    ).filter(a => favs.includes(a.text));
+    // Respect enabledCategories: start from the already-filtered pool (+ personal)
+    pool = pool.filter(a => favs.includes(a.text));
   } else if (currentCategory !== 'all') {
     pool = pool.filter(a => a.category === currentCategory || a.category === 'personal');
   }
@@ -197,6 +196,13 @@ function setupEventListeners() {
   // Export favorites
   document.getElementById('exportFavoritesBtn').addEventListener('click', exportFavorites);
 
+  // Stop camera stream if the user leaves the page
+  window.addEventListener('beforeunload', () => {
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(track => track.stop());
+    }
+  });
+
   // Swipe gesture on affirmation container
   let touchStartX = 0;
   let touchStartY = 0;
@@ -287,6 +293,7 @@ function openSettings() {
   document.getElementById('settingsPanel').classList.add('active');
   document.getElementById('settingsBackdrop').classList.add('active');
   renderCategoryToggles();
+  updateNotificationStatus();
 }
 
 function closeSettings() {
@@ -343,6 +350,25 @@ function loadSettings() {
 }
 
 // ===== Notifications =====
+function updateNotificationStatus() {
+  const statusEl = document.getElementById('notificationStatus');
+  if (!statusEl) return;
+  if (!('Notification' in window)) {
+    statusEl.textContent = 'הדפדפן שלך לא תומך בהתראות';
+    return;
+  }
+  switch (Notification.permission) {
+    case 'granted':
+      statusEl.textContent = '✓ התראות מופעלות';
+      break;
+    case 'denied':
+      statusEl.textContent = '✗ ההרשאה נחסמה – יש לאפשר בהגדרות הדפדפן';
+      break;
+    default:
+      statusEl.textContent = '';
+  }
+}
+
 async function requestNotificationPermission() {
   if (!('Notification' in window)) {
     alert('הדפדפן שלך לא תומך בהתראות');
@@ -350,6 +376,7 @@ async function requestNotificationPermission() {
   }
 
   const permission = await Notification.requestPermission();
+  updateNotificationStatus();
   if (permission === 'granted') {
     showToast('התראות הופעלו בהצלחה! תקבל תזכורות בשעות שהגדרת');
     saveSettings();
@@ -445,8 +472,9 @@ function isTimeMatch(current, target) {
   const [tH, tM] = target.split(':').map(Number);
   const currentMinutes = cH * 60 + cM;
   const targetMinutes = tH * 60 + tM;
-  // Match within a 2-minute window
-  return currentMinutes >= targetMinutes && currentMinutes <= targetMinutes + 1;
+  // Match at the target minute or the minute after (checker runs every 30s,
+  // so we tolerate a 1-minute drift to avoid missing a reminder).
+  return currentMinutes === targetMinutes || currentMinutes === targetMinutes + 1;
 }
 
 function sendNotification(title, period) {
@@ -632,15 +660,21 @@ function updateCategoryChips() {
 
 // ===== Service Worker =====
 async function registerServiceWorker() {
-  if ('serviceWorker' in navigator) {
-    try {
-      await navigator.serviceWorker.register('./sw.js');
-      // Once SW is ready, mirror saved settings so background sync can read them
-      await navigator.serviceWorker.ready;
+  if (!('serviceWorker' in navigator)) return;
+  try {
+    await navigator.serviceWorker.register('./sw.js');
+    await navigator.serviceWorker.ready;
+
+    // If SW is already controlling this page, sync immediately
+    if (navigator.serviceWorker.controller) {
       syncSettingsToSW();
-    } catch (err) {
-      console.log('Service Worker registration failed:', err);
     }
+
+    // On first install the SW calls clients.claim() which fires controllerchange.
+    // Sync settings once the SW takes control.
+    navigator.serviceWorker.addEventListener('controllerchange', syncSettingsToSW, { once: true });
+  } catch (err) {
+    console.log('Service Worker registration failed:', err);
   }
 }
 
