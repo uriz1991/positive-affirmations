@@ -735,3 +735,9 @@ body {
     justify-content: center;
   }
 }
+
+@keyframes heartPop {
+  0%   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  50%  { opacity: 1; transform: translate(-50%, -80%) scale(1.5); }
+  100% { opacity: 0; transform: translate(-50%, -120%) scale(1); }
+}
