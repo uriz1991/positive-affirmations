@@ -317,10 +317,35 @@ async function openCamera() {
     const video = document.getElementById('cameraVideo');
     video.srcObject = stream;
     document.getElementById('cameraSection').classList.add('active');
-    document.getElementById('cameraAffirmation').textContent = currentAffirmation.text;
+    const cameraAff = document.getElementById('cameraAffirmation');
+    cameraAff.textContent = currentAffirmation.text;
+
+    // Double-tap to favorite
+    let lastTap = 0;
+    cameraAff.addEventListener('click', () => {
+      const now = Date.now();
+      if (now - lastTap < 350) {
+        toggleFavorite();
+        showCameraHeart(cameraAff);
+      }
+      lastTap = now;
+    });
   } catch (err) {
     alert(t('cameraError'));
   }
+}
+
+function showCameraHeart(el) {
+  const heart = document.createElement('span');
+  heart.textContent = '♥';
+  heart.style.cssText = `
+    position: absolute; font-size: 3rem; color: #e05;
+    pointer-events: none; animation: heartPop 0.8s ease forwards;
+    left: 50%; top: 50%; transform: translate(-50%, -50%);
+  `;
+  el.style.position = 'relative';
+  el.appendChild(heart);
+  setTimeout(() => heart.remove(), 800);
 }
 
 function closeCamera() {
