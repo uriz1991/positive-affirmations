@@ -63,5 +63,15 @@
   "copyPrompt": "העתק את המשפט:",
   "favoriteBtnAria": "מועדף",
   "settingsBtnAria": "הגדרות",
-  "themeBtnAria": "החלף ערכת צבעים"
+  "themeBtnAria": "החלף ערכת צבעים",
+  "helpBtnAria": "מדריך האפליקציה",
+  "onboardingTitle": "ברוכים הבאים לאמירות חיוביות",
+  "onboardingSubtitle": "האפליקציה שתעזור לך להאמין בעצמך מדי יום",
+  "onboardingFeature1": "קטגוריות – בחר את התחום שמדבר אליך: ביטחון, אהבה, בריאות ועוד",
+  "onboardingFeature2": "מועדפים – לחץ על הלב כדי לשמור משפטים מיוחדים",
+  "onboardingFeature3": "מצב מצלמה – הסתכל על עצמך ואמור את המשפט. לחיצה כפולה על המשפט שומרת אותו למועדפים",
+  "onboardingFeature4": "משפטים אישיים – הוסף משפטים משלך בהגדרות",
+  "onboardingFeature5": "תזכורות – קבל השראה שלוש פעמים ביום",
+  "onboardingDontShow": "אל תראה לי שוב",
+  "onboardingStart": "בואו נתחיל! ✨"
 }

@@ -82,6 +82,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   loadPersonalAffirmations();
   registerServiceWorker();
   startReminderChecker();
+  maybeShowOnboarding();
 });
 
 // ===== Show Random Affirmation =====
@@ -186,10 +187,36 @@ function renderCategoryChips() {
   if (!stillExists) currentCategory = 'all';
 }
 
+// ===== Onboarding =====
+function maybeShowOnboarding() {
+  if (!localStorage.getItem('onboarding-hidden')) {
+    document.getElementById('onboardingBackdrop').classList.add('active');
+  }
+}
+
+function closeOnboarding() {
+  if (document.getElementById('dontShowOnboarding').checked) {
+    localStorage.setItem('onboarding-hidden', '1');
+  }
+  document.getElementById('onboardingBackdrop').classList.remove('active');
+}
+
 // ===== Event Listeners =====
 function setupEventListeners() {
   // New affirmation button
   document.getElementById('newAffirmationBtn').addEventListener('click', showRandomAffirmation);
+
+  // Help button
+  document.getElementById('helpBtn').addEventListener('click', () => {
+    document.getElementById('dontShowOnboarding').checked = false;
+    document.getElementById('onboardingBackdrop').classList.add('active');
+  });
+
+  // Onboarding close
+  document.getElementById('onboardingClose').addEventListener('click', closeOnboarding);
+  document.getElementById('onboardingBackdrop').addEventListener('click', (e) => {
+    if (e.target === document.getElementById('onboardingBackdrop')) closeOnboarding();
+  });
 
   // Category chips (event delegation)
   document.getElementById('categories').addEventListener('click', (e) => {
