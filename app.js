@@ -5,6 +5,7 @@ let currentCategory = 'all';
 let currentAffirmation = null;
 let cameraStream = null;
 let enabledCategories = null; // null = all enabled
+let categoryOrder = null; // null = default order from data
 let currentLang = 'he';
 let translations = {};
 
@@ -42,6 +43,7 @@ async function loadLanguage(lang) {
   document.title = t('appTitle');
 
   applyTranslations();
+  loadCategoryOrder();
   renderCategoryChips();
   loadEnabledCategories();
   updateCategoryChips();
@@ -172,8 +174,10 @@ function renderCategoryChips() {
   favChip.style.display = getFavorites().length > 0 ? '' : 'none';
   container.appendChild(favChip);
 
-  // Category chips from affirmations data
-  Object.entries(affirmationsData.categories).forEach(([key, name]) => {
+  // Category chips from affirmations data (in user-defined order)
+  getCategoryOrder().forEach(key => {
+    const name = affirmationsData.categories[key];
+    if (!name) return;
     const chip = document.createElement('button');
     chip.className = 'category-chip' + (wasActive === key ? ' active' : '');
     chip.dataset.category = key;
@@ -672,6 +676,31 @@ function renderPersonalList() {
   });
 }
 
+// ===== Category Order =====
+function loadCategoryOrder() {
+  try {
+    const saved = localStorage.getItem('category-order');
+    categoryOrder = saved ? JSON.parse(saved) : null;
+  } catch {
+    categoryOrder = null;
+  }
+}
+
+function saveCategoryOrder(order) {
+  categoryOrder = order;
+  localStorage.setItem('category-order', JSON.stringify(order));
+  renderCategoryChips();
+  updateCategoryChips();
+}
+
+function getCategoryOrder() {
+  const allKeys = Object.keys(affirmationsData.categories);
+  if (!categoryOrder) return allKeys;
+  const ordered = categoryOrder.filter(k => allKeys.includes(k));
+  allKeys.forEach(k => { if (!ordered.includes(k)) ordered.push(k); });
+  return ordered;
+}
+
 // ===== Category Preferences =====
 function loadEnabledCategories() {
   try {
@@ -707,9 +736,19 @@ function renderCategoryToggles() {
 
   const allEnabled = !enabledCategories;
 
-  Object.entries(affirmationsData.categories).forEach(([key, name]) => {
+  getCategoryOrder().forEach(key => {
+    const name = affirmationsData.categories[key];
+    if (!name) return;
+
     const row = document.createElement('div');
     row.className = 'category-toggle-row';
+    row.draggable = true;
+    row.dataset.key = key;
+
+    const handle = document.createElement('span');
+    handle.className = 'drag-handle';
+    handle.textContent = '☰';
+    handle.setAttribute('aria-hidden', 'true');
 
     const label = document.createElement('label');
     label.textContent = name;
@@ -728,9 +767,128 @@ function renderCategoryToggles() {
 
     toggle.appendChild(input);
     toggle.appendChild(slider);
+    row.appendChild(handle);
     row.appendChild(label);
     row.appendChild(toggle);
     container.appendChild(row);
+  });
+
+  initCategoryDragDrop(container);
+}
+
+function initCategoryDragDrop(container) {
+  let dragSrc = null;
+
+  // Desktop drag-and-drop
+  container.addEventListener('dragstart', e => {
+    const row = e.target.closest('.category-toggle-row');
+    if (!row) return;
+    dragSrc = row;
+    row.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+  });
+
+  container.addEventListener('dragend', () => {
+    if (dragSrc) dragSrc.classList.remove('dragging');
+    dragSrc = null;
+    container.querySelectorAll('.category-toggle-row').forEach(r => r.classList.remove('drag-over'));
+  });
+
+  container.addEventListener('dragover', e => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const row = e.target.closest('.category-toggle-row');
+    if (!row || row === dragSrc) return;
+    container.querySelectorAll('.category-toggle-row').forEach(r => r.classList.remove('drag-over'));
+    row.classList.add('drag-over');
+  });
+
+  container.addEventListener('drop', e => {
+    e.preventDefault();
+    const row = e.target.closest('.category-toggle-row');
+    if (!row || row === dragSrc || !dragSrc) return;
+    const rows = [...container.querySelectorAll('.category-toggle-row')];
+    const fromIdx = rows.indexOf(dragSrc);
+    const toIdx = rows.indexOf(row);
+    if (fromIdx !== toIdx) {
+      if (fromIdx < toIdx) row.after(dragSrc);
+      else row.before(dragSrc);
+      saveCategoryOrder([...container.querySelectorAll('.category-toggle-row')].map(r => r.dataset.key));
+    }
+    container.querySelectorAll('.category-toggle-row').forEach(r => r.classList.remove('drag-over'));
+  });
+
+  // Touch drag-and-drop
+  let touchSrc = null;
+  let touchClone = null;
+  let touchStartY = 0;
+  let touchStartScrollY = 0;
+
+  container.addEventListener('touchstart', e => {
+    const handle = e.target.closest('.drag-handle');
+    if (!handle) return;
+    const row = handle.closest('.category-toggle-row');
+    if (!row) return;
+    touchSrc = row;
+    touchStartY = e.touches[0].clientY;
+    touchStartScrollY = window.scrollY;
+
+    touchClone = row.cloneNode(true);
+    const rect = row.getBoundingClientRect();
+    touchClone.style.cssText = `
+      position: fixed;
+      left: ${rect.left}px;
+      top: ${rect.top}px;
+      width: ${rect.width}px;
+      opacity: 0.85;
+      z-index: 9999;
+      pointer-events: none;
+      background: var(--card-bg);
+      box-shadow: 0 4px 20px rgba(0,0,0,0.25);
+      border-radius: 8px;
+      padding: 8px 0;
+    `;
+    document.body.appendChild(touchClone);
+    row.classList.add('dragging');
+    e.preventDefault();
+  }, { passive: false });
+
+  container.addEventListener('touchmove', e => {
+    if (!touchSrc || !touchClone) return;
+    e.preventDefault();
+    const touch = e.touches[0];
+    const dy = touch.clientY - touchStartY;
+    const rect = touchSrc.getBoundingClientRect();
+    touchClone.style.top = (rect.top + dy) + 'px';
+
+    container.querySelectorAll('.category-toggle-row').forEach(r => r.classList.remove('drag-over'));
+    const target = [...container.querySelectorAll('.category-toggle-row:not(.dragging)')].find(r => {
+      const rRect = r.getBoundingClientRect();
+      return touch.clientY >= rRect.top && touch.clientY <= rRect.bottom;
+    });
+    if (target) target.classList.add('drag-over');
+  }, { passive: false });
+
+  container.addEventListener('touchend', e => {
+    if (!touchSrc || !touchClone) return;
+    const touch = e.changedTouches[0];
+    const target = [...container.querySelectorAll('.category-toggle-row:not(.dragging)')].find(r => {
+      const rRect = r.getBoundingClientRect();
+      return touch.clientY >= rRect.top && touch.clientY <= rRect.bottom;
+    });
+    if (target) {
+      const rows = [...container.querySelectorAll('.category-toggle-row')];
+      const fromIdx = rows.indexOf(touchSrc);
+      const toIdx = rows.indexOf(target);
+      if (fromIdx < toIdx) target.after(touchSrc);
+      else target.before(touchSrc);
+      saveCategoryOrder([...container.querySelectorAll('.category-toggle-row')].map(r => r.dataset.key));
+    }
+    touchSrc.classList.remove('dragging');
+    container.querySelectorAll('.category-toggle-row').forEach(r => r.classList.remove('drag-over'));
+    touchClone.remove();
+    touchClone = null;
+    touchSrc = null;
   });
 }
 

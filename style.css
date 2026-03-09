@@ -722,10 +722,42 @@ body {
   align-items: center;
   padding: 8px 0;
   border-bottom: 1px solid var(--card-border);
+  transition: opacity 0.15s, background 0.15s;
+  border-radius: 6px;
 }
 
-.category-toggle-row label {
+.category-toggle-row.dragging {
+  opacity: 0.35;
+}
+
+.category-toggle-row.drag-over {
+  background: var(--accent);
+  opacity: 0.4;
+}
+
+.category-toggle-row label:not(.toggle) {
   font-size: 0.85rem;
+  flex: 1;
+}
+
+.drag-handle {
+  cursor: grab;
+  color: var(--text-secondary);
+  font-size: 1rem;
+  padding: 0 8px 0 0;
+  user-select: none;
+  touch-action: none;
+  opacity: 0.5;
+  transition: opacity 0.15s;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+  opacity: 1;
+}
+
+.category-toggle-row:hover .drag-handle {
+  opacity: 0.85;
 }
 
 /* Animations */
