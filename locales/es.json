@@ -63,5 +63,15 @@
   "copyPrompt": "Copia esta afirmación:",
   "favoriteBtnAria": "Favorito",
   "settingsBtnAria": "Configuración",
-  "themeBtnAria": "Cambiar tema"
+  "themeBtnAria": "Cambiar tema",
+  "helpBtnAria": "Guía de la aplicación",
+  "onboardingTitle": "Bienvenido a Afirmaciones Positivas",
+  "onboardingSubtitle": "La app que te ayuda a creer en ti mismo cada día",
+  "onboardingFeature1": "Categorías – elige el tema que te hable: confianza, amor, salud y más",
+  "onboardingFeature2": "Favoritos – toca el corazón para guardar afirmaciones especiales",
+  "onboardingFeature3": "Modo cámara – mírate y dilo en voz alta. Doble toque en el texto para guardarlo en favoritos",
+  "onboardingFeature4": "Afirmaciones personales – agrega tus propias frases en Configuración",
+  "onboardingFeature5": "Recordatorios – recibe inspiración tres veces al día",
+  "onboardingDontShow": "No mostrar de nuevo",
+  "onboardingStart": "¡Vamos! ✨"
 }

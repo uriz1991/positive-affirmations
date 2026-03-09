@@ -63,5 +63,15 @@
   "copyPrompt": "Copy this affirmation:",
   "favoriteBtnAria": "Favorite",
   "settingsBtnAria": "Settings",
-  "themeBtnAria": "Toggle theme"
+  "themeBtnAria": "Toggle theme",
+  "helpBtnAria": "App guide",
+  "onboardingTitle": "Welcome to Positive Affirmations",
+  "onboardingSubtitle": "The app that helps you believe in yourself every day",
+  "onboardingFeature1": "Categories – pick the topic that speaks to you: confidence, love, health and more",
+  "onboardingFeature2": "Favorites – tap the heart to save special affirmations",
+  "onboardingFeature3": "Camera mode – look at yourself and say it aloud. Double-tap the text to save it to favorites",
+  "onboardingFeature4": "Personal affirmations – add your own sentences in Settings",
+  "onboardingFeature5": "Reminders – get inspired three times a day",
+  "onboardingDontShow": "Don't show again",
+  "onboardingStart": "Let's go! ✨"
 }

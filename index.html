@@ -19,6 +19,7 @@
   <header class="header">
     <button class="settings-btn" id="settingsBtn" data-i18n-aria="settingsBtnAria" aria-label="הגדרות">&#9881;</button>
     <button class="theme-btn" id="themeBtn" data-i18n-aria="themeBtnAria" aria-label="החלף ערכת צבעים">&#9728;</button>
+    <button class="help-btn" id="helpBtn" data-i18n-aria="helpBtnAria" aria-label="מדריך האפליקציה">&#63;</button>
     <h1 data-i18n="appTitle">אמירות חיוביות</h1>
     <p class="subtitle" data-i18n="appSubtitle">כל רגע הוא הזדמנות להאמין</p>
     <div class="streak-badge" id="streakBadge" style="display:none">&#128293; <span id="streakCount">1</span> <span data-i18n="streakDays">ימים ברצף</span></div>
@@ -62,6 +63,31 @@
       Developed by <a href="https://www.linkedin.com/in/urielzion" target="_blank" rel="noopener noreferrer" class="footer-credit-link">Uriel Zion</a>
     </p>
   </footer>
+
+  <!-- Onboarding modal -->
+  <div class="onboarding-backdrop" id="onboardingBackdrop">
+    <div class="onboarding-modal">
+      <div class="onboarding-header">
+        <div class="onboarding-emoji">🌟</div>
+        <h2 data-i18n="onboardingTitle">ברוכים הבאים לאמירות חיוביות</h2>
+        <p class="onboarding-subtitle" data-i18n="onboardingSubtitle">האפליקציה שתעזור לך להאמין בעצמך מדי יום</p>
+      </div>
+      <ul class="onboarding-features">
+        <li><span class="feat-icon">📂</span><span data-i18n="onboardingFeature1">קטגוריות – בחר את התחום שמדבר אליך: ביטחון, אהבה, בריאות ועוד</span></li>
+        <li><span class="feat-icon">♥</span><span data-i18n="onboardingFeature2">מועדפים – לחץ על הלב כדי לשמור משפטים מיוחדים</span></li>
+        <li><span class="feat-icon">📷</span><span data-i18n="onboardingFeature3">מצב מצלמה – הסתכל על עצמך ואמור את המשפט. לחיצה כפולה על המשפט שומרת אותו למועדפים</span></li>
+        <li><span class="feat-icon">✏️</span><span data-i18n="onboardingFeature4">משפטים אישיים – הוסף משפטים משלך בהגדרות</span></li>
+        <li><span class="feat-icon">🔔</span><span data-i18n="onboardingFeature5">תזכורות – קבל השראה שלוש פעמים ביום</span></li>
+      </ul>
+      <div class="onboarding-footer">
+        <label class="onboarding-dont-show">
+          <input type="checkbox" id="dontShowOnboarding">
+          <span data-i18n="onboardingDontShow">אל תראה לי שוב</span>
+        </label>
+        <button class="btn btn-primary onboarding-start-btn" id="onboardingClose" data-i18n="onboardingStart">בואו נתחיל! ✨</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Camera section -->
   <div class="camera-section" id="cameraSection">
