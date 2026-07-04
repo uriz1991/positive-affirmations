@@ -528,11 +528,59 @@ async function registerPeriodicSync() {
 
 // ===== Reminder Checker =====
 let reminderInterval = null;
+let reminderTimeouts = [];
 
 function startReminderChecker() {
   if (reminderInterval) clearInterval(reminderInterval);
   checkReminders();
   reminderInterval = setInterval(checkReminders, 30000);
+  scheduleExactReminders();
+  syncSettingsToSWOnLoad();
+}
+
+function scheduleExactReminders() {
+  reminderTimeouts.forEach(t => clearTimeout(t));
+  reminderTimeouts = [];
+
+  if (Notification.permission !== 'granted') return;
+  const saved = localStorage.getItem('reminder-settings');
+  if (!saved) return;
+
+  let settings;
+  try { settings = JSON.parse(saved); } catch { return; }
+
+  const now = new Date();
+  const today = now.toDateString();
+  let sent = {};
+  try {
+    const sentData = localStorage.getItem('reminders-sent');
+    sent = sentData ? JSON.parse(sentData) : {};
+    if (sent._date !== today) sent = { _date: today };
+  } catch { sent = { _date: today }; }
+
+  const periods = ['morning', 'noon', 'evening'];
+  periods.forEach(period => {
+    if (!settings[period]?.enabled || sent[period]) return;
+    const [h, m] = settings[period].time.split(':').map(Number);
+    const target = new Date(now);
+    target.setHours(h, m, 0, 0);
+    const delay = target.getTime() - now.getTime();
+    if (delay > 0) {
+      const tid = setTimeout(() => checkReminders(), delay);
+      reminderTimeouts.push(tid);
+    }
+  });
+}
+
+function syncSettingsToSWOnLoad() {
+  const saved = localStorage.getItem('reminder-settings');
+  if (!saved) return;
+  try {
+    const settings = JSON.parse(saved);
+    if (navigator.serviceWorker?.controller) {
+      navigator.serviceWorker.controller.postMessage({ type: 'SAVE_SETTINGS', settings });
+    }
+  } catch {}
 }
 
 function checkReminders() {
@@ -545,7 +593,7 @@ function checkReminders() {
   try { settings = JSON.parse(saved); } catch { return; }
 
   const now = new Date();
-  const currentTime = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
+  const currentMinutes = now.getHours() * 60 + now.getMinutes();
   const today = now.toDateString();
 
   let sent = {};
@@ -566,7 +614,9 @@ function checkReminders() {
   Object.entries(periods).forEach(([period, title]) => {
     if (!settings[period] || !settings[period].enabled) return;
     if (sent[period]) return;
-    if (isTimeMatch(currentTime, settings[period].time)) {
+    const [tH, tM] = settings[period].time.split(':').map(Number);
+    const targetMinutes = tH * 60 + tM;
+    if (currentMinutes >= targetMinutes) {
       sendNotification(title, period);
       sent[period] = true;
       localStorage.setItem('reminders-sent', JSON.stringify(sent));
@@ -574,13 +624,11 @@ function checkReminders() {
   });
 }
 
-function isTimeMatch(current, target) {
-  const [cH, cM] = current.split(':').map(Number);
-  const [tH, tM] = target.split(':').map(Number);
-  const currentMinutes = cH * 60 + cM;
-  const targetMinutes = tH * 60 + tM;
-  return currentMinutes === targetMinutes || currentMinutes === targetMinutes + 1;
-}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    checkReminders();
+  }
+});
 
 function sendNotification(title, period) {
   const body = currentAffirmation ? currentAffirmation.text : '';
@@ -923,6 +971,7 @@ async function registerServiceWorker() {
     }
 
     navigator.serviceWorker.addEventListener('controllerchange', syncSettingsToSW, { once: true });
+    registerPeriodicSync();
   } catch (err) {
     console.log('Service Worker registration failed:', err);
   }
