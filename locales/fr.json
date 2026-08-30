@@ -106,5 +106,6 @@
   "signOut": "Se déconnecter",
   "toastSignedIn": "Connexion réussie ✓",
   "toastSignedOut": "Déconnecté",
-  "toastSignInError": "Échec de la connexion, veuillez réessayer"
+  "toastSignInError": "Échec de la connexion, veuillez réessayer",
+  "toastSyncError": "Échec de la synchronisation, vos données sont enregistrées sur cet appareil uniquement"
 }
