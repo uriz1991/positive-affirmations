@@ -10,6 +10,8 @@ let currentLang = 'he';
 let translations = {};
 let goalData = { goal: '', steps: [] };
 let visualizeInterval = null;
+let currentUser = null;
+let cloudSyncEnabled = false;
 
 const GOAL_EXTRA_PATTERNS = {
   he: {
@@ -701,6 +703,7 @@ function addPersonalAffirmation() {
   }, 300);
   updateFavoriteBtn();
   showToast(t('personalAdded'));
+  pushToCloud();
 }
 
 function removePersonalAffirmation(index) {
@@ -708,6 +711,7 @@ function removePersonalAffirmation(index) {
   personal.splice(index, 1);
   localStorage.setItem('personal-affirmations', JSON.stringify(personal));
   renderPersonalList();
+  pushToCloud();
 }
 
 function loadPersonalAffirmations() {
@@ -1061,6 +1065,7 @@ function toggleFavorite() {
   localStorage.setItem('favorites', JSON.stringify(favs));
   updateFavoriteBtn();
   updateFavoritesChip();
+  pushToCloud();
 }
 
 function updateFavoriteBtn() {
@@ -1205,6 +1210,7 @@ function handleSaveGoal() {
     saveGoalData();
     showToast(t('goalSaved').replace('{n}', goalData.steps.length));
     logAnalyticsEvent('goal_set', { step_count: goalData.steps.length });
+    pushToCloud();
   }
   renderGoalBanner();
   renderGoalSteps();
@@ -1216,6 +1222,7 @@ function toggleGoalStep(index) {
   renderGoalSteps();
   renderGoalBanner();
   if (goalData.steps[index].done) logAnalyticsEvent('goal_step_completed');
+  pushToCloud();
 }
 
 function renderGoalBanner() {
@@ -1304,6 +1311,7 @@ function addJournalEntry() {
   renderJournalList();
   showToast(t('journalAdded'));
   logAnalyticsEvent('journal_entry_added');
+  pushToCloud();
 }
 
 function removeJournalEntry(index) {
@@ -1311,6 +1319,7 @@ function removeJournalEntry(index) {
   entries.splice(index, 1);
   localStorage.setItem('belief-journal', JSON.stringify(entries));
   renderJournalList();
+  pushToCloud();
 }
 
 function renderJournalList() {
@@ -1338,17 +1347,72 @@ function renderJournalList() {
 }
 
 // ===== Google Auth =====
-function handleAuthChange(user) {
+async function handleAuthChange(user) {
   const signedOutEl = document.getElementById('accountSignedOut');
   const signedInEl = document.getElementById('accountSignedIn');
+  currentUser = user;
+  cloudSyncEnabled = !!user;
+
   if (user) {
     signedOutEl.style.display = 'none';
     signedInEl.style.display = '';
     document.getElementById('accountAvatar').src = user.photoURL || '';
     document.getElementById('accountName').textContent = user.displayName || user.email || '';
+    await syncFromCloud(user.uid);
   } else {
     signedOutEl.style.display = '';
     signedInEl.style.display = 'none';
+  }
+}
+
+// ===== Cloud Sync (Firestore) =====
+// On sign-in: if the account already has cloud data, it wins and overwrites
+// this device's local copy. If not (first time this account is used),
+// this device's current local data is pushed up as the initial cloud copy.
+async function syncFromCloud(uid) {
+  if (!window.AppAuth?.loadUserData) return;
+  try {
+    const cloud = await window.AppAuth.loadUserData(uid);
+    if (cloud) {
+      if (cloud.goalData) {
+        goalData = cloud.goalData;
+        saveGoalData();
+      }
+      if (Array.isArray(cloud.journal)) {
+        localStorage.setItem('belief-journal', JSON.stringify(cloud.journal));
+      }
+      if (Array.isArray(cloud.favorites)) {
+        localStorage.setItem('favorites', JSON.stringify(cloud.favorites));
+      }
+      if (Array.isArray(cloud.personalAffirmations)) {
+        localStorage.setItem('personal-affirmations', JSON.stringify(cloud.personalAffirmations));
+      }
+
+      renderGoalBanner();
+      renderGoalSteps();
+      renderJournalList();
+      renderPersonalList();
+      updateFavoritesChip();
+      showRandomAffirmation();
+    } else {
+      await pushToCloud();
+    }
+  } catch {
+    showToast(t('toastSyncError'));
+  }
+}
+
+async function pushToCloud() {
+  if (!cloudSyncEnabled || !currentUser || !window.AppAuth?.saveUserData) return;
+  try {
+    await window.AppAuth.saveUserData(currentUser.uid, {
+      goalData,
+      journal: getJournalEntries(),
+      favorites: getFavorites(),
+      personalAffirmations: getPersonalAffirmations()
+    });
+  } catch {
+    showToast(t('toastSyncError'));
   }
 }
 

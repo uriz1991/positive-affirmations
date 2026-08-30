@@ -106,5 +106,6 @@
   "signOut": "Cerrar sesión",
   "toastSignedIn": "Sesión iniciada correctamente ✓",
   "toastSignedOut": "Sesión cerrada",
-  "toastSignInError": "Error al iniciar sesión, inténtalo de nuevo"
+  "toastSignInError": "Error al iniciar sesión, inténtalo de nuevo",
+  "toastSyncError": "Error de sincronización, tus datos se guardaron solo en este dispositivo"
 }

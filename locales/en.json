@@ -106,5 +106,6 @@
   "signOut": "Sign out",
   "toastSignedIn": "Signed in successfully ✓",
   "toastSignedOut": "Signed out",
-  "toastSignInError": "Sign-in failed, please try again"
+  "toastSignInError": "Sign-in failed, please try again",
+  "toastSyncError": "Sync failed, your data was saved on this device only"
 }

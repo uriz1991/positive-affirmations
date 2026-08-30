@@ -106,5 +106,6 @@
   "signOut": "התנתק",
   "toastSignedIn": "התחברת בהצלחה ✓",
   "toastSignedOut": "התנתקת",
-  "toastSignInError": "ההתחברות נכשלה, נסה שוב"
+  "toastSignInError": "ההתחברות נכשלה, נסה שוב",
+  "toastSyncError": "סנכרון נכשל, הנתונים נשמרו רק במכשיר הזה"
 }

@@ -7,6 +7,12 @@ import {
   signOut as fbSignOut,
   onAuthStateChanged
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js';
+import {
+  getFirestore,
+  doc,
+  getDoc,
+  setDoc
+} from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 
 const firebaseConfig = {
   apiKey: 'AIzaSyC0AFO8gOk1VizEGnuQBBaoEX6ddH-qyek',
@@ -22,12 +28,20 @@ const firebaseApp = initializeApp(firebaseConfig);
 const analytics = getAnalytics(firebaseApp);
 const auth = getAuth(firebaseApp);
 const provider = new GoogleAuthProvider();
+const db = getFirestore(firebaseApp);
 
 window.AppAuth = {
   signIn: () => signInWithPopup(auth, provider),
   signOut: () => fbSignOut(auth),
   onChange: (callback) => onAuthStateChanged(auth, callback),
-  logEvent: (name, params) => logEvent(analytics, name, params)
+  logEvent: (name, params) => logEvent(analytics, name, params),
+  loadUserData: async (uid) => {
+    const snap = await getDoc(doc(db, 'users', uid));
+    return snap.exists() ? snap.data() : null;
+  },
+  saveUserData: async (uid, data) => {
+    await setDoc(doc(db, 'users', uid), { ...data, updatedAt: Date.now() }, { merge: true });
+  }
 };
 
 window.dispatchEvent(new Event('appauth-ready'));
