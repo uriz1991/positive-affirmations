@@ -23,6 +23,8 @@
     <h1 data-i18n="appTitle">אמירות חיוביות</h1>
     <p class="subtitle" data-i18n="appSubtitle">כל רגע הוא הזדמנות להאמין</p>
     <div class="streak-badge" id="streakBadge" style="display:none">&#128293; <span id="streakCount">1</span> <span data-i18n="streakDays">ימים ברצף</span></div>
+    <div class="goal-banner" id="goalBanner" style="display:none"></div>
+    <button class="goal-banner-empty" id="goalBannerEmpty" data-i18n="goalBannerEmpty">&#127919; הגדר יעד גדול</button>
   </header>
 
   <!-- Category filter – rendered dynamically by JS -->
@@ -112,6 +114,17 @@
     </div>
   </div>
 
+  <!-- Visualize (goal + affirmation breathing exercise) -->
+  <div class="visualize-section" id="visualizeSection">
+    <button class="camera-close" id="visualizeClose">&#10005;</button>
+    <div class="visualize-pulse"></div>
+    <div class="visualize-content">
+      <p class="visualize-goal" id="visualizeGoalText"></p>
+      <p class="affirmation-text" id="visualizeAffirmationText"></p>
+      <p class="visualize-timer" id="visualizeTimer">60</p>
+    </div>
+  </div>
+
   <!-- Settings panel -->
   <div class="settings-backdrop" id="settingsBackdrop"></div>
   <div class="settings-panel" id="settingsPanel">
@@ -167,6 +180,27 @@
         &#128276; <span data-i18n="enableNotifications">אפשר התראות</span>
       </button>
       <p id="notificationStatus" style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 8px;"></p>
+    </div>
+
+    <div class="setting-group">
+      <h3>&#127919; <span data-i18n="goalTitle">היעד הגדול שלי</span></h3>
+      <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 8px;" data-i18n="goalDesc">כתוב יעד אחד גדול וברור. האפליקציה תפרק אותו לצעדים ותזכיר לך אותו כל יום.</p>
+      <div class="personal-input">
+        <input type="text" id="goalInput" data-i18n-placeholder="goalPlaceholder" placeholder="למשל: אני בונה עסק מצליח ויוצא מהמשבר" maxlength="200">
+        <button id="saveGoalBtn">&#10003;</button>
+      </div>
+      <div class="goal-steps" id="goalSteps"></div>
+      <button class="upgrade-chip" id="upgradeAiBtn" data-i18n="upgradeAiChip">&#128274; שדרוג ל-AI Coach אישי — בקרוב</button>
+    </div>
+
+    <div class="setting-group">
+      <h3>&#128173; <span data-i18n="journalTitle">רגעי אמונה</span></h3>
+      <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 8px;" data-i18n="journalDesc">מתי היום הרגשת לרגע שזה אפשרי? רשום משפט אחד.</p>
+      <div class="personal-input">
+        <input type="text" id="journalInput" data-i18n-placeholder="journalPlaceholder" placeholder="כתוב רגע אמונה..." maxlength="200">
+        <button id="addJournalBtn">&#10133;</button>
+      </div>
+      <div class="personal-list" id="journalList"></div>
     </div>
 
     <div class="setting-group">

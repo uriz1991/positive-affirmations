@@ -77,5 +77,27 @@
   "onboardingFeature4": "Afirmaciones personales – agrega tus propias frases en Configuración",
   "onboardingFeature5": "Recordatorios – recibe inspiración tres veces al día",
   "onboardingDontShow": "No mostrar de nuevo",
-  "onboardingStart": "¡Vamos! ✨"
+  "onboardingStart": "¡Vamos! ✨",
+  "goalTitle": "Mi gran meta",
+  "goalDesc": "Escribe una meta grande y clara. La app la dividirá en pasos y te la recordará cada día.",
+  "goalPlaceholder": "ej.: Estoy construyendo un negocio exitoso y saliendo de este mal momento",
+  "goalBannerEmpty": "🎯 Define una gran meta",
+  "goalSaved": "¡Meta guardada! Dividida en {n} pasos 🎯",
+  "goalStepsBase": [
+    "Define con claridad cómo se ve cuando ya has logrado esta meta",
+    "Visualízalo cada día durante un minuto - como si ya hubiera sucedido",
+    "Encuentra el paso más pequeño posible que puedas dar hoy",
+    "Nota cada momento de fe en el camino y anótalo",
+    "Revisa tu progreso una vez por semana y renueva tu compromiso"
+  ],
+  "goalExtraBusiness": "Identifica dónde ya creas valor para otros - ahí es donde empieza la abundancia",
+  "goalExtraCrisis": "Date permiso para sentir esto ahora - y recuerda: esto también pasará",
+  "goalExtraHealth": "Elige un pequeño hábito físico y repítelo cada día",
+  "goalExtraRelationship": "Empieza dando - una conexión real comienza dando sin esperar nada a cambio",
+  "upgradeAiChip": "🔒 Mejora a un AI Coach personal — próximamente",
+  "upgradeAiToast": "¡Próximamente! Te avisaremos cuando esté listo 🚀",
+  "journalTitle": "Diario de fe",
+  "journalDesc": "¿Cuándo hoy sentiste, aunque sea por un momento, que esto es posible? Escribe una frase.",
+  "journalPlaceholder": "Escribe un momento de fe...",
+  "journalAdded": "Guardado en el diario ✓"
 }

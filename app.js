@@ -8,6 +8,35 @@ let enabledCategories = null; // null = all enabled
 let categoryOrder = null; // null = default order from data
 let currentLang = 'he';
 let translations = {};
+let goalData = { goal: '', steps: [] };
+let visualizeInterval = null;
+
+const GOAL_EXTRA_PATTERNS = {
+  he: {
+    business: /עסק|כסף|הכנסה|עושר|כלכל/,
+    crisis: /דאון|חרדה|פחד|מצוקה|קשה|לחוץ|לחץ/,
+    health: /בריאות|משקל|כושר|ספורט/,
+    relationship: /זוגיות|אהבה|קשר|מערכת יחסים/
+  },
+  en: {
+    business: /business|money|income|wealth|financ/i,
+    crisis: /anxi|fear|stress|crisis|depress/i,
+    health: /health|weight|fitness|sport|exercise/i,
+    relationship: /relationship|love|partner|marriage/i
+  },
+  fr: {
+    business: /entrepris|argent|revenu|richesse|financ/i,
+    crisis: /anxiét|peur|stress|crise|dépress/i,
+    health: /santé|poids|forme|sport/i,
+    relationship: /relation|amour|couple|mariage/i
+  },
+  es: {
+    business: /negocio|dinero|ingreso|riqueza|financ/i,
+    crisis: /ansiedad|miedo|estrés|crisis|depres/i,
+    health: /salud|peso|forma f[ií]sica|deporte/i,
+    relationship: /relaci[oó]n|amor|pareja|matrimonio/i
+  }
+};
 
 // ===== i18n =====
 function t(key) {
@@ -82,6 +111,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   updateStreak();
   loadSettings();
   loadPersonalAffirmations();
+  loadGoalData();
+  renderGoalBanner();
   registerServiceWorker();
   startReminderChecker();
   maybeShowOnboarding();
@@ -314,6 +345,30 @@ function setupEventListeners() {
   // Export favorites
   document.getElementById('exportFavoritesBtn').addEventListener('click', exportFavorites);
 
+  // Goal banner
+  document.getElementById('goalBannerEmpty').addEventListener('click', () => {
+    openSettings();
+    setTimeout(() => document.getElementById('goalInput').focus(), 350);
+  });
+  document.getElementById('goalBanner').addEventListener('click', openVisualize);
+  document.getElementById('saveGoalBtn').addEventListener('click', handleSaveGoal);
+  document.getElementById('goalInput').addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') handleSaveGoal();
+  });
+  document.getElementById('upgradeAiBtn').addEventListener('click', () => showToast(t('upgradeAiToast')));
+
+  // Visualize overlay
+  document.getElementById('visualizeClose').addEventListener('click', closeVisualize);
+  document.getElementById('visualizeSection').addEventListener('click', (e) => {
+    if (e.target.id === 'visualizeSection') closeVisualize();
+  });
+
+  // Belief journal
+  document.getElementById('addJournalBtn').addEventListener('click', addJournalEntry);
+  document.getElementById('journalInput').addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') addJournalEntry();
+  });
+
   // Stop camera stream if the user leaves the page
   window.addEventListener('beforeunload', () => {
     if (cameraStream) {
@@ -425,6 +480,9 @@ function openSettings() {
   document.getElementById('settingsBackdrop').classList.add('active');
   renderCategoryToggles();
   updateNotificationStatus();
+  document.getElementById('goalInput').value = goalData.goal || '';
+  renderGoalSteps();
+  renderJournalList();
 }
 
 function closeSettings() {
@@ -1088,4 +1146,183 @@ async function checkForUpdate() {
     statusEl.textContent = t('updateError');
     btn.disabled = false;
   }
+}
+
+// ===== Big Goal =====
+function loadGoalData() {
+  try {
+    const saved = localStorage.getItem('goal-data');
+    goalData = saved ? JSON.parse(saved) : { goal: '', steps: [] };
+  } catch {
+    goalData = { goal: '', steps: [] };
+  }
+}
+
+function saveGoalData() {
+  localStorage.setItem('goal-data', JSON.stringify(goalData));
+}
+
+function generateGoalSteps(goalText) {
+  let base = t('goalStepsBase');
+  if (!Array.isArray(base) || base.length < 5) {
+    base = [
+      'תגדיר לעצמך בבירור איך זה נראה כשהיעד הזה כבר הושג',
+      'דמיין את זה כל יום למשך דקה - כאילו זה כבר קרה',
+      'מצא את הצעד הקטן ביותר שאתה יכול לעשות היום',
+      'שים לב לכל רגע אמונה בדרך ותעד אותו',
+      'סקור את ההתקדמות שלך פעם בשבוע ותחדש מחויבות'
+    ];
+  }
+
+  const patterns = GOAL_EXTRA_PATTERNS[currentLang] || GOAL_EXTRA_PATTERNS.he;
+  let extraText = null;
+  for (const [type, regex] of Object.entries(patterns)) {
+    if (regex.test(goalText)) {
+      extraText = t('goalExtra' + type.charAt(0).toUpperCase() + type.slice(1));
+      break;
+    }
+  }
+
+  const steps = [base[0]];
+  if (extraText) steps.push(extraText);
+  steps.push(base[1], base[2], base[3], base[4]);
+  return steps.map(text => ({ text, done: false }));
+}
+
+function handleSaveGoal() {
+  const input = document.getElementById('goalInput');
+  const text = input.value.trim();
+  if (!text) return;
+
+  if (goalData.goal !== text) {
+    goalData = { goal: text, steps: generateGoalSteps(text) };
+    saveGoalData();
+    showToast(t('goalSaved').replace('{n}', goalData.steps.length));
+  }
+  renderGoalBanner();
+  renderGoalSteps();
+}
+
+function toggleGoalStep(index) {
+  goalData.steps[index].done = !goalData.steps[index].done;
+  saveGoalData();
+  renderGoalSteps();
+  renderGoalBanner();
+}
+
+function renderGoalBanner() {
+  const banner = document.getElementById('goalBanner');
+  const empty = document.getElementById('goalBannerEmpty');
+  if (!goalData.goal) {
+    banner.style.display = 'none';
+    empty.style.display = '';
+    return;
+  }
+  empty.style.display = 'none';
+  banner.style.display = '';
+  const done = goalData.steps.filter(s => s.done).length;
+  banner.textContent = `🎯 ${goalData.goal} · ${done}/${goalData.steps.length} · 🧘`;
+}
+
+function renderGoalSteps() {
+  const container = document.getElementById('goalSteps');
+  if (!container) return;
+  container.innerHTML = '';
+
+  goalData.steps.forEach((step, i) => {
+    const row = document.createElement('div');
+    row.className = 'goal-step-row' + (step.done ? ' done' : '');
+
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.checked = step.done;
+    checkbox.addEventListener('change', () => toggleGoalStep(i));
+
+    const span = document.createElement('span');
+    span.textContent = step.text;
+
+    row.appendChild(checkbox);
+    row.appendChild(span);
+    container.appendChild(row);
+  });
+}
+
+// ===== Visualize =====
+function openVisualize() {
+  if (!goalData.goal && !currentAffirmation) return;
+  document.getElementById('visualizeGoalText').textContent = goalData.goal ? `🎯 ${goalData.goal}` : '';
+  document.getElementById('visualizeAffirmationText').textContent = currentAffirmation ? currentAffirmation.text : '';
+  document.getElementById('visualizeSection').classList.add('active');
+
+  let seconds = 60;
+  const timerEl = document.getElementById('visualizeTimer');
+  timerEl.textContent = seconds;
+  clearInterval(visualizeInterval);
+  visualizeInterval = setInterval(() => {
+    seconds -= 1;
+    timerEl.textContent = seconds;
+    if (seconds <= 0) closeVisualize();
+  }, 1000);
+}
+
+function closeVisualize() {
+  clearInterval(visualizeInterval);
+  visualizeInterval = null;
+  document.getElementById('visualizeSection').classList.remove('active');
+}
+
+// ===== Belief Journal =====
+function getJournalEntries() {
+  try {
+    const saved = localStorage.getItem('belief-journal');
+    const parsed = saved ? JSON.parse(saved) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function addJournalEntry() {
+  const input = document.getElementById('journalInput');
+  const text = input.value.trim();
+  if (!text || text.length > 200) return;
+
+  const entries = getJournalEntries();
+  entries.unshift(text);
+  localStorage.setItem('belief-journal', JSON.stringify(entries.slice(0, 200)));
+
+  input.value = '';
+  renderJournalList();
+  showToast(t('journalAdded'));
+}
+
+function removeJournalEntry(index) {
+  const entries = getJournalEntries();
+  entries.splice(index, 1);
+  localStorage.setItem('belief-journal', JSON.stringify(entries));
+  renderJournalList();
+}
+
+function renderJournalList() {
+  const list = document.getElementById('journalList');
+  if (!list) return;
+  const entries = getJournalEntries();
+  list.innerHTML = '';
+
+  entries.forEach((text, i) => {
+    const div = document.createElement('div');
+    div.className = 'personal-item';
+
+    const span = document.createElement('span');
+    span.textContent = text;
+
+    const btn = document.createElement('button');
+    btn.innerHTML = '&#10005;';
+    btn.setAttribute('aria-label', t('deleteBtn'));
+    btn.addEventListener('click', () => removeJournalEntry(i));
+
+    div.appendChild(span);
+    div.appendChild(btn);
+    list.appendChild(div);
+  });
 }

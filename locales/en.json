@@ -77,5 +77,27 @@
   "onboardingFeature4": "Personal affirmations – add your own sentences in Settings",
   "onboardingFeature5": "Reminders – get inspired three times a day",
   "onboardingDontShow": "Don't show again",
-  "onboardingStart": "Let's go! ✨"
+  "onboardingStart": "Let's go! ✨",
+  "goalTitle": "My Big Goal",
+  "goalDesc": "Write one big, clear goal. The app will break it into steps and remind you of it every day.",
+  "goalPlaceholder": "e.g. I'm building a successful business and coming out of this rough patch",
+  "goalBannerEmpty": "🎯 Set a big goal",
+  "goalSaved": "Goal saved! Broken into {n} steps 🎯",
+  "goalStepsBase": [
+    "Get crystal clear on what it looks like when this goal is already achieved",
+    "Visualize it for one minute every day - as if it already happened",
+    "Find the smallest possible step you can take today",
+    "Notice every moment of belief along the way and write it down",
+    "Review your progress once a week and renew your commitment"
+  ],
+  "goalExtraBusiness": "Identify where you already create value for others - that's where abundance begins",
+  "goalExtraCrisis": "Give yourself permission to feel this right now - and remember: this too shall pass",
+  "goalExtraHealth": "Pick one small physical habit and repeat it every day",
+  "goalExtraRelationship": "Start by giving - real connection begins with giving without expecting anything back",
+  "upgradeAiChip": "🔒 Upgrade to a personal AI Coach — coming soon",
+  "upgradeAiToast": "Coming soon! We'll let you know when it's ready 🚀",
+  "journalTitle": "Belief Journal",
+  "journalDesc": "When today did you feel, even for a moment, that this is possible? Write one sentence.",
+  "journalPlaceholder": "Write a belief moment...",
+  "journalAdded": "Saved to journal ✓"
 }

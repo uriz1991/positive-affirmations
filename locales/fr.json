@@ -77,5 +77,27 @@
   "onboardingFeature4": "Affirmations personnelles – ajoutez vos propres phrases dans les Paramètres",
   "onboardingFeature5": "Rappels – recevez de l'inspiration trois fois par jour",
   "onboardingDontShow": "Ne plus afficher",
-  "onboardingStart": "C'est parti ! ✨"
+  "onboardingStart": "C'est parti ! ✨",
+  "goalTitle": "Mon grand objectif",
+  "goalDesc": "Écrivez un objectif grand et clair. L'app le décomposera en étapes et vous le rappellera chaque jour.",
+  "goalPlaceholder": "ex. : Je construis une entreprise prospère et je sors de cette période difficile",
+  "goalBannerEmpty": "🎯 Définir un grand objectif",
+  "goalSaved": "Objectif enregistré ! Décomposé en {n} étapes 🎯",
+  "goalStepsBase": [
+    "Définissez clairement à quoi ressemble l'atteinte de cet objectif",
+    "Visualisez-le chaque jour pendant une minute - comme si c'était déjà arrivé",
+    "Trouvez le plus petit pas possible que vous pouvez faire aujourd'hui",
+    "Remarquez chaque moment de croyance en chemin et notez-le",
+    "Passez en revue vos progrès une fois par semaine et renouvelez votre engagement"
+  ],
+  "goalExtraBusiness": "Identifiez où vous créez déjà de la valeur pour les autres - c'est là que l'abondance commence",
+  "goalExtraCrisis": "Autorisez-vous à ressentir cela maintenant - et rappelez-vous : cela aussi passera",
+  "goalExtraHealth": "Choisissez une petite habitude physique et répétez-la chaque jour",
+  "goalExtraRelationship": "Commencez par donner - une vraie connexion commence par donner sans rien attendre en retour",
+  "upgradeAiChip": "🔒 Passer à un AI Coach personnel — bientôt",
+  "upgradeAiToast": "Bientôt disponible ! Nous vous préviendrons 🚀",
+  "journalTitle": "Journal de croyance",
+  "journalDesc": "Quand aujourd'hui avez-vous senti, ne serait-ce qu'un instant, que c'est possible ? Écrivez une phrase.",
+  "journalPlaceholder": "Écrivez un moment de croyance...",
+  "journalAdded": "Enregistré dans le journal ✓"
 }
