@@ -99,5 +99,12 @@
   "journalTitle": "רגעי אמונה",
   "journalDesc": "מתי היום הרגשת לרגע שזה אפשרי? רשום משפט אחד.",
   "journalPlaceholder": "כתוב רגע אמונה...",
-  "journalAdded": "נשמר ביומן ✓"
+  "journalAdded": "נשמר ביומן ✓",
+  "accountTitle": "חשבון",
+  "signInGoogle": "התחבר עם Google",
+  "accountWhySignIn": "התחברות מאפשרת לנו בעתיד לסנכרן את היעד וההתקדמות שלך בין מכשירים",
+  "signOut": "התנתק",
+  "toastSignedIn": "התחברת בהצלחה ✓",
+  "toastSignedOut": "התנתקת",
+  "toastSignInError": "ההתחברות נכשלה, נסה שוב"
 }

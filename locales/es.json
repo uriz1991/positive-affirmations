@@ -99,5 +99,12 @@
   "journalTitle": "Diario de fe",
   "journalDesc": "¿Cuándo hoy sentiste, aunque sea por un momento, que esto es posible? Escribe una frase.",
   "journalPlaceholder": "Escribe un momento de fe...",
-  "journalAdded": "Guardado en el diario ✓"
+  "journalAdded": "Guardado en el diario ✓",
+  "accountTitle": "Cuenta",
+  "signInGoogle": "Iniciar sesión con Google",
+  "accountWhySignIn": "Iniciar sesión nos permitirá en el futuro sincronizar tu meta y progreso entre dispositivos",
+  "signOut": "Cerrar sesión",
+  "toastSignedIn": "Sesión iniciada correctamente ✓",
+  "toastSignedOut": "Sesión cerrada",
+  "toastSignInError": "Error al iniciar sesión, inténtalo de nuevo"
 }

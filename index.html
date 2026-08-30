@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="אמירות חיוביות - משפטים חיוביים, מנטרות ואמונה. כל יום, כל רגע. בחינם, בלי פרסומות.">
   <meta name="theme-color" content="#6c63ff">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'; media-src 'self'; connect-src 'self';">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://apis.google.com https://www.gstatic.com https://www.googletagmanager.com; style-src 'self' 'unsafe-inline'; img-src 'self' https://lh3.googleusercontent.com; media-src 'self'; connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebaseinstallations.googleapis.com https://www.google-analytics.com https://*.google-analytics.com https://www.googletagmanager.com; frame-src https://positive-affirmations-9f382.firebaseapp.com https://accounts.google.com;">
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="assets/icon-192.png">
   <link rel="apple-touch-icon" href="assets/icon-192.png">
@@ -131,6 +131,32 @@
     <div class="settings-header">
       <h2>&#9881; <span data-i18n="settingsTitle">הגדרות</span></h2>
       <button class="settings-close" id="settingsClose">&#10005;</button>
+    </div>
+
+    <!-- Account -->
+    <div class="setting-group">
+      <h3>&#128100; <span data-i18n="accountTitle">חשבון</span></h3>
+      <div id="accountSignedOut">
+        <button class="google-signin-btn" id="googleSignInBtn">
+          <svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"/>
+            <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z"/>
+            <path fill="#FBBC05" d="M3.964 10.706c-.18-.54-.282-1.117-.282-1.706s.102-1.166.282-1.706V4.962H.957C.347 6.173 0 7.548 0 9s.348 2.827.957 4.038l3.007-2.332z"/>
+            <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.962L3.964 7.294C4.672 5.167 6.656 3.58 9 3.58z"/>
+          </svg>
+          <span data-i18n="signInGoogle">התחבר עם Google</span>
+        </button>
+        <p style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 8px;" data-i18n="accountWhySignIn">התחברות מאפשרת לנו בעתיד לסנכרן את היעד וההתקדמות שלך בין מכשירים</p>
+      </div>
+      <div id="accountSignedIn" style="display:none">
+        <div class="account-profile">
+          <img id="accountAvatar" class="account-avatar" alt="">
+          <span id="accountName"></span>
+        </div>
+        <button class="btn btn-secondary" id="googleSignOutBtn" style="margin-top: 10px; font-size: 0.85rem;">
+          <span data-i18n="signOut">התנתק</span>
+        </button>
+      </div>
     </div>
 
     <!-- Language selector -->
@@ -260,6 +286,7 @@
     </div>
   </div>
 
+  <script type="module" src="firebase-init.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

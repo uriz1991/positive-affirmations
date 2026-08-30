@@ -99,5 +99,12 @@
   "journalTitle": "Belief Journal",
   "journalDesc": "When today did you feel, even for a moment, that this is possible? Write one sentence.",
   "journalPlaceholder": "Write a belief moment...",
-  "journalAdded": "Saved to journal ✓"
+  "journalAdded": "Saved to journal ✓",
+  "accountTitle": "Account",
+  "signInGoogle": "Sign in with Google",
+  "accountWhySignIn": "Signing in will let us sync your goal and progress across devices in the future",
+  "signOut": "Sign out",
+  "toastSignedIn": "Signed in successfully ✓",
+  "toastSignedOut": "Signed out",
+  "toastSignInError": "Sign-in failed, please try again"
 }

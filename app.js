@@ -116,6 +116,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   registerServiceWorker();
   startReminderChecker();
   maybeShowOnboarding();
+  if (window.AppAuth) window.AppAuth.onChange(handleAuthChange);
 });
 
 // ===== Show Random Affirmation =====
@@ -344,6 +345,10 @@ function setupEventListeners() {
 
   // Export favorites
   document.getElementById('exportFavoritesBtn').addEventListener('click', exportFavorites);
+
+  // Google sign-in
+  document.getElementById('googleSignInBtn').addEventListener('click', handleGoogleSignIn);
+  document.getElementById('googleSignOutBtn').addEventListener('click', handleGoogleSignOut);
 
   // Goal banner
   document.getElementById('goalBannerEmpty').addEventListener('click', () => {
@@ -1048,6 +1053,7 @@ function toggleFavorite() {
   if (idx === -1) {
     favs.push(text);
     showToast(t('toastFavAdded'));
+    logAnalyticsEvent('favorite_added');
   } else {
     favs.splice(idx, 1);
     showToast(t('toastFavRemoved'));
@@ -1198,6 +1204,7 @@ function handleSaveGoal() {
     goalData = { goal: text, steps: generateGoalSteps(text) };
     saveGoalData();
     showToast(t('goalSaved').replace('{n}', goalData.steps.length));
+    logAnalyticsEvent('goal_set', { step_count: goalData.steps.length });
   }
   renderGoalBanner();
   renderGoalSteps();
@@ -1208,6 +1215,7 @@ function toggleGoalStep(index) {
   saveGoalData();
   renderGoalSteps();
   renderGoalBanner();
+  if (goalData.steps[index].done) logAnalyticsEvent('goal_step_completed');
 }
 
 function renderGoalBanner() {
@@ -1250,6 +1258,7 @@ function renderGoalSteps() {
 // ===== Visualize =====
 function openVisualize() {
   if (!goalData.goal && !currentAffirmation) return;
+  logAnalyticsEvent('visualize_started');
   document.getElementById('visualizeGoalText').textContent = goalData.goal ? `🎯 ${goalData.goal}` : '';
   document.getElementById('visualizeAffirmationText').textContent = currentAffirmation ? currentAffirmation.text : '';
   document.getElementById('visualizeSection').classList.add('active');
@@ -1294,6 +1303,7 @@ function addJournalEntry() {
   input.value = '';
   renderJournalList();
   showToast(t('journalAdded'));
+  logAnalyticsEvent('journal_entry_added');
 }
 
 function removeJournalEntry(index) {
@@ -1325,4 +1335,41 @@ function renderJournalList() {
     div.appendChild(btn);
     list.appendChild(div);
   });
+}
+
+// ===== Google Auth =====
+function handleAuthChange(user) {
+  const signedOutEl = document.getElementById('accountSignedOut');
+  const signedInEl = document.getElementById('accountSignedIn');
+  if (user) {
+    signedOutEl.style.display = 'none';
+    signedInEl.style.display = '';
+    document.getElementById('accountAvatar').src = user.photoURL || '';
+    document.getElementById('accountName').textContent = user.displayName || user.email || '';
+  } else {
+    signedOutEl.style.display = '';
+    signedInEl.style.display = 'none';
+  }
+}
+
+async function handleGoogleSignIn() {
+  if (!window.AppAuth) return;
+  try {
+    await window.AppAuth.signIn();
+    showToast(t('toastSignedIn'));
+  } catch {
+    showToast(t('toastSignInError'));
+  }
+}
+
+async function handleGoogleSignOut() {
+  if (!window.AppAuth) return;
+  await window.AppAuth.signOut();
+  showToast(t('toastSignedOut'));
+}
+
+function logAnalyticsEvent(name, params) {
+  if (window.AppAuth?.logEvent) {
+    try { window.AppAuth.logEvent(name, params); } catch {}
+  }
 }

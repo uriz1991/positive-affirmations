@@ -99,5 +99,12 @@
   "journalTitle": "Journal de croyance",
   "journalDesc": "Quand aujourd'hui avez-vous senti, ne serait-ce qu'un instant, que c'est possible ? Écrivez une phrase.",
   "journalPlaceholder": "Écrivez un moment de croyance...",
-  "journalAdded": "Enregistré dans le journal ✓"
+  "journalAdded": "Enregistré dans le journal ✓",
+  "accountTitle": "Compte",
+  "signInGoogle": "Se connecter avec Google",
+  "accountWhySignIn": "La connexion nous permettra à l'avenir de synchroniser votre objectif et vos progrès entre appareils",
+  "signOut": "Se déconnecter",
+  "toastSignedIn": "Connexion réussie ✓",
+  "toastSignedOut": "Déconnecté",
+  "toastSignInError": "Échec de la connexion, veuillez réessayer"
 }
