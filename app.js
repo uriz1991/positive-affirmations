@@ -241,9 +241,9 @@ function maybeShowOnboarding() {
 }
 
 function closeOnboarding() {
-  if (document.getElementById('dontShowOnboarding').checked) {
-    localStorage.setItem('onboarding-hidden', '1');
-  }
+  // Any close (X, backdrop, or start button) means "seen it" — the checkbox
+  // no longer gates this, it would otherwise show again on every reload.
+  localStorage.setItem('onboarding-hidden', '1');
   document.getElementById('onboardingBackdrop').classList.remove('active');
 }
 
@@ -297,6 +297,17 @@ function setupEventListeners() {
   document.getElementById('cameraNextBtn').addEventListener('click', () => {
     showRandomAffirmation();
     document.getElementById('cameraAffirmation').textContent = currentAffirmation.text;
+  });
+
+  // Camera double-tap to favorite (bound once — openCamera used to re-bind this on every open)
+  let lastCameraTap = 0;
+  document.getElementById('cameraAffirmation').addEventListener('click', () => {
+    const now = Date.now();
+    if (now - lastCameraTap < 350) {
+      toggleFavorite();
+      showCameraHeart(document.getElementById('cameraAffirmation'));
+    }
+    lastCameraTap = now;
   });
 
   // Share button
@@ -367,7 +378,6 @@ function setupEventListeners() {
   document.getElementById('goalInput').addEventListener('keypress', (e) => {
     if (e.key === 'Enter') handleSaveGoal();
   });
-  document.getElementById('upgradeAiBtn').addEventListener('click', () => showToast(t('upgradeAiToast')));
 
   // Visualize overlay
   document.getElementById('visualizeClose').addEventListener('click', closeVisualize);
@@ -417,17 +427,6 @@ async function openCamera() {
     document.getElementById('cameraSection').classList.add('active');
     const cameraAff = document.getElementById('cameraAffirmation');
     cameraAff.textContent = currentAffirmation.text;
-
-    // Double-tap to favorite
-    let lastTap = 0;
-    cameraAff.addEventListener('click', () => {
-      const now = Date.now();
-      if (now - lastTap < 350) {
-        toggleFavorite();
-        showCameraHeart(cameraAff);
-      }
-      lastTap = now;
-    });
   } catch (err) {
     alert(t('cameraError'));
   }
@@ -506,9 +505,9 @@ function closeSettings() {
 // ===== Reminders (flexible list, user can add/remove any number) =====
 function defaultReminders() {
   return [
-    { id: 'r' + Date.now() + 'a', time: '08:00', enabled: true, label: t('notifMorning') },
-    { id: 'r' + Date.now() + 'b', time: '13:00', enabled: true, label: t('notifNoon') },
-    { id: 'r' + Date.now() + 'c', time: '21:00', enabled: true, label: t('notifEvening') }
+    { id: 'default-morning', time: '08:00', enabled: true, label: t('notifMorning') },
+    { id: 'default-noon', time: '13:00', enabled: true, label: t('notifNoon') },
+    { id: 'default-evening', time: '21:00', enabled: true, label: t('notifEvening') }
   ];
 }
 
@@ -530,10 +529,14 @@ function getReminders() {
   try {
     const saved = localStorage.getItem('reminders-list');
     const parsed = saved ? JSON.parse(saved) : null;
-    return Array.isArray(parsed) ? parsed : defaultReminders();
-  } catch {
-    return defaultReminders();
-  }
+    if (Array.isArray(parsed)) return parsed;
+  } catch {}
+
+  // No reminders saved yet — persist the defaults immediately so their ids
+  // stay stable across calls (this function is polled every 30s).
+  const defaults = defaultReminders();
+  localStorage.setItem('reminders-list', JSON.stringify(defaults));
+  return defaults;
 }
 
 function saveReminders(reminders) {
@@ -1450,29 +1453,39 @@ async function handleAuthChange(user) {
 // On sign-in: if the account already has cloud data, it wins and overwrites
 // this device's local copy. If not (first time this account is used),
 // this device's current local data is pushed up as the initial cloud copy.
+function mergeStringArrays(local, cloud) {
+  const combined = [...(Array.isArray(local) ? local : []), ...(Array.isArray(cloud) ? cloud : [])];
+  return [...new Set(combined)];
+}
+
+function mergeReminders(local, cloud) {
+  const map = new Map();
+  (Array.isArray(local) ? local : []).forEach(r => map.set(r.id, r));
+  (Array.isArray(cloud) ? cloud : []).forEach(r => map.set(r.id, r));
+  return [...map.values()];
+}
+
+// Merges cloud data into local rather than overwriting it — a non-empty
+// local list is never replaced by an empty cloud one (e.g. signing into an
+// account with no cloud data yet, or an older cloud copy, used to wipe out
+// whatever the user had already built up on this device).
 async function syncFromCloud(uid) {
   if (!window.AppAuth?.loadUserData) return;
   try {
     const cloud = await window.AppAuth.loadUserData(uid);
     if (cloud) {
-      if (cloud.goalData) {
+      if (cloud.goalData?.goal) {
         goalData = cloud.goalData;
         saveGoalData();
       }
-      if (Array.isArray(cloud.journal)) {
-        localStorage.setItem('belief-journal', JSON.stringify(cloud.journal));
-      }
-      if (Array.isArray(cloud.favorites)) {
-        localStorage.setItem('favorites', JSON.stringify(cloud.favorites));
-      }
-      if (Array.isArray(cloud.personalAffirmations)) {
-        localStorage.setItem('personal-affirmations', JSON.stringify(cloud.personalAffirmations));
-      }
-      if (Array.isArray(cloud.reminders)) {
-        localStorage.setItem('reminders-list', JSON.stringify(cloud.reminders));
-        syncSettingsToSW();
-        startReminderChecker();
-      }
+      // else: local goal (if any) is kept as-is and pushed back up below.
+
+      localStorage.setItem('belief-journal', JSON.stringify(mergeStringArrays(getJournalEntries(), cloud.journal)));
+      localStorage.setItem('favorites', JSON.stringify(mergeStringArrays(getFavorites(), cloud.favorites)));
+      localStorage.setItem('personal-affirmations', JSON.stringify(mergeStringArrays(getPersonalAffirmations(), cloud.personalAffirmations)));
+      localStorage.setItem('reminders-list', JSON.stringify(mergeReminders(getReminders(), cloud.reminders)));
+      syncSettingsToSW();
+      startReminderChecker();
 
       renderGoalBanner();
       renderGoalSteps();
@@ -1481,6 +1494,9 @@ async function syncFromCloud(uid) {
       renderReminders();
       updateFavoritesChip();
       showRandomAffirmation();
+
+      showToast(t('toastSynced'));
+      await pushToCloud(); // write the merged result back up so both sides converge
     } else {
       await pushToCloud();
     }

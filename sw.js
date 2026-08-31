@@ -31,16 +31,31 @@ const SETTINGS_CACHE = 'affirmations-settings';
 const ASSETS = [
   './',
   './index.html',
+  './privacy.html',
   './style.css',
   './app.js',
+  './init-lang.js',
+  './firebase-init.js',
   './manifest.json',
-  './data/affirmations.json'
+  './data/affirmations.json',
+  './data/affirmations-en.json',
+  './data/affirmations-fr.json',
+  './data/affirmations-es.json',
+  './locales/he.json',
+  './locales/en.json',
+  './locales/fr.json',
+  './locales/es.json',
+  './assets/icon-192.png',
+  './assets/icon-512.png'
 ];
 
-// Install - cache assets
+// Install - cache assets. Each file is cached independently so one 404
+// doesn't abort the whole install (cache.addAll fails atomically).
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
+    caches.open(CACHE_NAME).then((cache) =>
+      Promise.all(ASSETS.map((url) => cache.add(url).catch(() => {})))
+    )
   );
   self.skipWaiting();
 });
@@ -131,9 +146,12 @@ async function checkAndNotifyFromBackground() {
 
     const [h, m] = r.time.split(':').map(Number);
     const settingMinutes = h * 60 + m;
+    const diff = currentMinutes - settingMinutes;
 
-    // Send if current time is past the set time (not exact match — periodic sync fires at browser discretion)
-    if (currentMinutes >= settingMinutes) {
+    // Fire only within a grace window after the set time (periodic sync runs
+    // at browser discretion, not on the minute) — never for times long past,
+    // or every overdue reminder bursts out together in one sync.
+    if (diff >= 0 && diff <= 30) {
       await showNotification(r.label);
       sent[r.id] = true;
       updated = true;
