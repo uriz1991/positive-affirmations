@@ -107,5 +107,9 @@
   "toastSignedIn": "Sesión iniciada correctamente ✓",
   "toastSignedOut": "Sesión cerrada",
   "toastSignInError": "Error al iniciar sesión, inténtalo de nuevo",
-  "toastSyncError": "Error de sincronización, tus datos se guardaron solo en este dispositivo"
+  "toastSyncError": "Error de sincronización, tus datos se guardaron solo en este dispositivo",
+  "addReminder": "Agregar recordatorio",
+  "remindersMax": "Puedes agregar hasta 10 recordatorios",
+  "newReminderLabel": "Nuevo recordatorio",
+  "xiaomiNotice": "Notamos que usas un dispositivo Xiaomi/MIUI — para que las notificaciones lleguen de forma confiable, ve a: Seguridad → Permisos → Inicio automático, y permite este navegador."
 }

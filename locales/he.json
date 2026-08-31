@@ -107,5 +107,9 @@
   "toastSignedIn": "התחברת בהצלחה ✓",
   "toastSignedOut": "התנתקת",
   "toastSignInError": "ההתחברות נכשלה, נסה שוב",
-  "toastSyncError": "סנכרון נכשל, הנתונים נשמרו רק במכשיר הזה"
+  "toastSyncError": "סנכרון נכשל, הנתונים נשמרו רק במכשיר הזה",
+  "addReminder": "הוסף תזכורת",
+  "remindersMax": "ניתן להוסיף עד 10 תזכורות",
+  "newReminderLabel": "תזכורת חדשה",
+  "xiaomiNotice": "שמנו לב שאתה על מכשיר שיאומי/MIUI — כדי שההתראות יגיעו באמינות, היכנס ל: אבטחה ← הרשאות ← Autostart, ואפשר לדפדפן הזה."
 }

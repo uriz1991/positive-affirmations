@@ -107,5 +107,9 @@
   "toastSignedIn": "Signed in successfully ✓",
   "toastSignedOut": "Signed out",
   "toastSignInError": "Sign-in failed, please try again",
-  "toastSyncError": "Sync failed, your data was saved on this device only"
+  "toastSyncError": "Sync failed, your data was saved on this device only",
+  "addReminder": "Add reminder",
+  "remindersMax": "You can add up to 10 reminders",
+  "newReminderLabel": "New reminder",
+  "xiaomiNotice": "We noticed you're on a Xiaomi/MIUI device — for notifications to arrive reliably, go to: Security → Permissions → Autostart, and allow this browser."
 }

@@ -107,5 +107,9 @@
   "toastSignedIn": "Connexion réussie ✓",
   "toastSignedOut": "Déconnecté",
   "toastSignInError": "Échec de la connexion, veuillez réessayer",
-  "toastSyncError": "Échec de la synchronisation, vos données sont enregistrées sur cet appareil uniquement"
+  "toastSyncError": "Échec de la synchronisation, vos données sont enregistrées sur cet appareil uniquement",
+  "addReminder": "Ajouter un rappel",
+  "remindersMax": "Vous pouvez ajouter jusqu'à 10 rappels",
+  "newReminderLabel": "Nouveau rappel",
+  "xiaomiNotice": "Nous avons remarqué que vous êtes sur un appareil Xiaomi/MIUI — pour que les notifications arrivent de manière fiable, allez dans : Sécurité → Autorisations → Démarrage automatique, et autorisez ce navigateur."
 }

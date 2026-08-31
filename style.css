@@ -637,6 +637,65 @@ body {
   font-size: 0.9rem;
 }
 
+/* Reminders */
+.reminders-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.reminder-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--card-border);
+}
+
+.reminder-row .reminder-label {
+  flex: 1;
+  min-width: 0;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  color: var(--text-primary);
+  padding: 6px 8px;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 0.8rem;
+}
+
+.reminder-row .reminder-time {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  color: var(--text-primary);
+  padding: 6px 8px;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 0.8rem;
+  flex-shrink: 0;
+}
+
+.reminder-row .reminder-delete {
+  background: none;
+  border: none;
+  color: #ff6b6b;
+  cursor: pointer;
+  font-size: 0.9rem;
+  flex-shrink: 0;
+  padding: 4px;
+}
+
+.xiaomi-notice {
+  font-size: 0.75rem;
+  color: #ffb84d;
+  margin-top: 8px;
+  line-height: 1.5;
+  background: rgba(255, 184, 77, 0.1);
+  border: 1px solid rgba(255, 184, 77, 0.3);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
 /* Google sign-in */
 .google-signin-btn {
   display: flex;

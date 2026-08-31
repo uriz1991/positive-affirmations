@@ -111,14 +111,22 @@ document.addEventListener('DOMContentLoaded', async () => {
   loadTheme();
   loadFontSize();
   updateStreak();
-  loadSettings();
+  migrateOldReminders();
   loadPersonalAffirmations();
   loadGoalData();
   renderGoalBanner();
   registerServiceWorker();
   startReminderChecker();
   maybeShowOnboarding();
-  if (window.AppAuth) window.AppAuth.onChange(handleAuthChange);
+  if (window.AppAuth) {
+    window.AppAuth.onChange(handleAuthChange);
+    window.AppAuth.onForegroundMessage((payload) => {
+      const title = payload.notification?.title || payload.data?.title || '';
+      const body = payload.notification?.body || payload.data?.body || '';
+      showToast(`${title}${body ? ' — ' + body : ''}`);
+    });
+  }
+  if (Notification.permission === 'granted') registerFcmToken();
 });
 
 // ===== Show Random Affirmation =====
@@ -317,11 +325,8 @@ function setupEventListeners() {
   // Notification buttons
   document.getElementById('enableNotifications').addEventListener('click', requestNotificationPermission);
 
-  // Reminder toggles and times
-  ['morning', 'noon', 'evening'].forEach(period => {
-    document.getElementById(`${period}Toggle`).addEventListener('change', saveSettings);
-    document.getElementById(`${period}Time`).addEventListener('change', saveSettings);
-  });
+  // Reminders
+  document.getElementById('addReminderBtn').addEventListener('click', addReminder);
 
   // Personal affirmations
   document.getElementById('addPersonalBtn').addEventListener('click', addPersonalAffirmation);
@@ -487,6 +492,7 @@ function openSettings() {
   document.getElementById('settingsBackdrop').classList.add('active');
   renderCategoryToggles();
   updateNotificationStatus();
+  renderReminders();
   document.getElementById('goalInput').value = goalData.goal || '';
   renderGoalSteps();
   renderJournalList();
@@ -497,51 +503,115 @@ function closeSettings() {
   document.getElementById('settingsBackdrop').classList.remove('active');
 }
 
-function saveSettings() {
-  const settings = {
-    morning: {
-      enabled: document.getElementById('morningToggle').checked,
-      time: document.getElementById('morningTime').value
-    },
-    noon: {
-      enabled: document.getElementById('noonToggle').checked,
-      time: document.getElementById('noonTime').value
-    },
-    evening: {
-      enabled: document.getElementById('eveningToggle').checked,
-      time: document.getElementById('eveningTime').value
-    }
-  };
-
-  localStorage.setItem('reminder-settings', JSON.stringify(settings));
-
-  if (navigator.serviceWorker?.controller) {
-    navigator.serviceWorker.controller.postMessage({ type: 'SAVE_SETTINGS', settings });
-  }
-
-  startReminderChecker();
+// ===== Reminders (flexible list, user can add/remove any number) =====
+function defaultReminders() {
+  return [
+    { id: 'r' + Date.now() + 'a', time: '08:00', enabled: true, label: t('notifMorning') },
+    { id: 'r' + Date.now() + 'b', time: '13:00', enabled: true, label: t('notifNoon') },
+    { id: 'r' + Date.now() + 'c', time: '21:00', enabled: true, label: t('notifEvening') }
+  ];
 }
 
-function loadSettings() {
-  const saved = localStorage.getItem('reminder-settings');
-  if (!saved) return;
+function migrateOldReminders() {
+  if (localStorage.getItem('reminders-list')) return;
+  const old = localStorage.getItem('reminder-settings');
+  if (!old) return;
+  try {
+    const settings = JSON.parse(old);
+    const list = [];
+    if (settings.morning) list.push({ id: 'r1', time: settings.morning.time, enabled: settings.morning.enabled, label: t('notifMorning') });
+    if (settings.noon) list.push({ id: 'r2', time: settings.noon.time, enabled: settings.noon.enabled, label: t('notifNoon') });
+    if (settings.evening) list.push({ id: 'r3', time: settings.evening.time, enabled: settings.evening.enabled, label: t('notifEvening') });
+    if (list.length) localStorage.setItem('reminders-list', JSON.stringify(list));
+  } catch {}
+}
 
-  let settings;
-  try { settings = JSON.parse(saved); } catch { return; }
-  if (!settings) return;
+function getReminders() {
+  try {
+    const saved = localStorage.getItem('reminders-list');
+    const parsed = saved ? JSON.parse(saved) : null;
+    return Array.isArray(parsed) ? parsed : defaultReminders();
+  } catch {
+    return defaultReminders();
+  }
+}
 
-  if (settings.morning) {
-    document.getElementById('morningToggle').checked = settings.morning.enabled;
-    document.getElementById('morningTime').value = settings.morning.time;
+function saveReminders(reminders) {
+  localStorage.setItem('reminders-list', JSON.stringify(reminders));
+  syncSettingsToSW();
+  startReminderChecker();
+  pushToCloud();
+}
+
+function renderReminders() {
+  const container = document.getElementById('remindersList');
+  if (!container) return;
+  const reminders = getReminders();
+  container.innerHTML = '';
+
+  reminders.forEach(r => {
+    const row = document.createElement('div');
+    row.className = 'reminder-row';
+    row.dataset.id = r.id;
+
+    const labelInput = document.createElement('input');
+    labelInput.type = 'text';
+    labelInput.className = 'reminder-label';
+    labelInput.value = r.label;
+    labelInput.maxLength = 40;
+    labelInput.addEventListener('change', () => updateReminder(r.id, { label: labelInput.value.trim() || r.label }));
+
+    const timeInput = document.createElement('input');
+    timeInput.type = 'time';
+    timeInput.className = 'reminder-time';
+    timeInput.value = r.time;
+    timeInput.addEventListener('change', () => updateReminder(r.id, { time: timeInput.value }));
+
+    const toggleLabel = document.createElement('label');
+    toggleLabel.className = 'toggle';
+    const toggleInput = document.createElement('input');
+    toggleInput.type = 'checkbox';
+    toggleInput.checked = r.enabled;
+    toggleInput.addEventListener('change', () => updateReminder(r.id, { enabled: toggleInput.checked }));
+    const slider = document.createElement('span');
+    slider.className = 'toggle-slider';
+    toggleLabel.appendChild(toggleInput);
+    toggleLabel.appendChild(slider);
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'reminder-delete';
+    delBtn.innerHTML = '&#10005;';
+    delBtn.setAttribute('aria-label', t('deleteBtn'));
+    delBtn.addEventListener('click', () => removeReminder(r.id));
+
+    row.appendChild(labelInput);
+    row.appendChild(timeInput);
+    row.appendChild(toggleLabel);
+    row.appendChild(delBtn);
+    container.appendChild(row);
+  });
+}
+
+function updateReminder(id, changes) {
+  const reminders = getReminders().map(r => r.id === id ? { ...r, ...changes } : r);
+  saveReminders(reminders);
+}
+
+function removeReminder(id) {
+  const reminders = getReminders().filter(r => r.id !== id);
+  saveReminders(reminders);
+  renderReminders();
+}
+
+function addReminder() {
+  const reminders = getReminders();
+  if (reminders.length >= 10) {
+    showToast(t('remindersMax'));
+    return;
   }
-  if (settings.noon) {
-    document.getElementById('noonToggle').checked = settings.noon.enabled;
-    document.getElementById('noonTime').value = settings.noon.time;
-  }
-  if (settings.evening) {
-    document.getElementById('eveningToggle').checked = settings.evening.enabled;
-    document.getElementById('eveningTime').value = settings.evening.time;
-  }
+  reminders.push({ id: 'r' + Date.now(), time: '12:00', enabled: true, label: t('newReminderLabel') });
+  saveReminders(reminders);
+  renderReminders();
 }
 
 // ===== Notifications =====
@@ -557,6 +627,14 @@ function updateNotificationStatus() {
     case 'denied':   statusEl.textContent = t('notifBlocked'); break;
     default:         statusEl.textContent = '';
   }
+  checkXiaomiNotice();
+}
+
+function checkXiaomiNotice() {
+  const notice = document.getElementById('xiaomiNotice');
+  if (!notice) return;
+  const isMiui = /miui|xiaomi|redmi|poco/i.test(navigator.userAgent);
+  notice.style.display = (isMiui && Notification.permission === 'granted') ? '' : 'none';
 }
 
 async function requestNotificationPermission() {
@@ -569,9 +647,9 @@ async function requestNotificationPermission() {
   updateNotificationStatus();
   if (permission === 'granted') {
     showToast(t('notifEnabled'));
-    saveSettings();
     startReminderChecker();
     registerPeriodicSync();
+    await registerFcmToken();
   } else {
     showToast(t('notifDenied'));
   }
@@ -591,7 +669,20 @@ async function registerPeriodicSync() {
   } catch {}
 }
 
-// ===== Reminder Checker =====
+// ===== FCM (real push notifications, work even when the app is fully closed) =====
+async function registerFcmToken() {
+  if (!window.AppAuth?.getFcmToken) return;
+  try {
+    const token = await window.AppAuth.getFcmToken();
+    if (!token) return;
+    localStorage.setItem('fcm-token', token);
+    if (cloudSyncEnabled && currentUser && window.AppAuth.saveFcmToken) {
+      await window.AppAuth.saveFcmToken(currentUser.uid, token);
+    }
+  } catch {}
+}
+
+// ===== Reminder Checker (foreground fallback — the server-side FCM job is the reliable path) =====
 let reminderInterval = null;
 
 function startReminderChecker() {
@@ -603,11 +694,8 @@ function startReminderChecker() {
 function checkReminders() {
   if (Notification.permission !== 'granted') return;
 
-  const saved = localStorage.getItem('reminder-settings');
-  if (!saved) return;
-
-  let settings;
-  try { settings = JSON.parse(saved); } catch { return; }
+  const reminders = getReminders();
+  if (!reminders.length) return;
 
   const now = new Date();
   const currentTime = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
@@ -622,18 +710,12 @@ function checkReminders() {
     sent = { _date: today };
   }
 
-  const periods = {
-    morning: t('notifMorning'),
-    noon:    t('notifNoon'),
-    evening: t('notifEvening')
-  };
-
-  Object.entries(periods).forEach(([period, title]) => {
-    if (!settings[period] || !settings[period].enabled) return;
-    if (sent[period]) return;
-    if (isTimeMatch(currentTime, settings[period].time)) {
-      sendNotification(title, period);
-      sent[period] = true;
+  reminders.forEach(r => {
+    if (!r.enabled) return;
+    if (sent[r.id]) return;
+    if (isTimeMatch(currentTime, r.time)) {
+      sendNotification(r.label, r.id);
+      sent[r.id] = true;
       localStorage.setItem('reminders-sent', JSON.stringify(sent));
     }
   });
@@ -647,12 +729,12 @@ function isTimeMatch(current, target) {
   return currentMinutes === targetMinutes || currentMinutes === targetMinutes + 1;
 }
 
-function sendNotification(title, period) {
+function sendNotification(title, reminderId) {
   const body = currentAffirmation ? currentAffirmation.text : '';
   if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
     navigator.serviceWorker.controller.postMessage({ type: 'SHOW_NOTIFICATION', title, body });
-    if (period) {
-      navigator.serviceWorker.controller.postMessage({ type: 'MARK_SENT', period });
+    if (reminderId) {
+      navigator.serviceWorker.controller.postMessage({ type: 'MARK_SENT', period: reminderId });
     }
   } else {
     new Notification(title, {
@@ -997,12 +1079,10 @@ async function registerServiceWorker() {
 
 function syncSettingsToSW() {
   if (!navigator.serviceWorker?.controller) return;
-  const saved = localStorage.getItem('reminder-settings');
-  if (!saved) return;
   try {
     navigator.serviceWorker.controller.postMessage({
       type: 'SAVE_SETTINGS',
-      settings: JSON.parse(saved)
+      reminders: getReminders()
     });
   } catch {}
 }
@@ -1359,6 +1439,7 @@ async function handleAuthChange(user) {
     document.getElementById('accountAvatar').src = user.photoURL || '';
     document.getElementById('accountName').textContent = user.displayName || user.email || '';
     await syncFromCloud(user.uid);
+    if (Notification.permission === 'granted') registerFcmToken();
   } else {
     signedOutEl.style.display = '';
     signedInEl.style.display = 'none';
@@ -1387,11 +1468,17 @@ async function syncFromCloud(uid) {
       if (Array.isArray(cloud.personalAffirmations)) {
         localStorage.setItem('personal-affirmations', JSON.stringify(cloud.personalAffirmations));
       }
+      if (Array.isArray(cloud.reminders)) {
+        localStorage.setItem('reminders-list', JSON.stringify(cloud.reminders));
+        syncSettingsToSW();
+        startReminderChecker();
+      }
 
       renderGoalBanner();
       renderGoalSteps();
       renderJournalList();
       renderPersonalList();
+      renderReminders();
       updateFavoritesChip();
       showRandomAffirmation();
     } else {
@@ -1409,7 +1496,9 @@ async function pushToCloud() {
       goalData,
       journal: getJournalEntries(),
       favorites: getFavorites(),
-      personalAffirmations: getPersonalAffirmations()
+      personalAffirmations: getPersonalAffirmations(),
+      reminders: getReminders(),
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
     });
   } catch {
     showToast(t('toastSyncError'));

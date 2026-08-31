@@ -11,8 +11,18 @@ import {
   getFirestore,
   doc,
   getDoc,
-  setDoc
+  setDoc,
+  arrayUnion
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
+import {
+  getMessaging,
+  getToken,
+  onMessage
+} from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging.js';
+
+// Generated in Firebase Console → Project Settings → Cloud Messaging → Web configuration → Generate key pair.
+// This is a public key, safe to ship in client code.
+const VAPID_KEY = 'PASTE_VAPID_PUBLIC_KEY_HERE';
 
 const firebaseConfig = {
   apiKey: 'AIzaSyC0AFO8gOk1VizEGnuQBBaoEX6ddH-qyek',
@@ -29,6 +39,7 @@ const analytics = getAnalytics(firebaseApp);
 const auth = getAuth(firebaseApp);
 const provider = new GoogleAuthProvider();
 const db = getFirestore(firebaseApp);
+const messaging = getMessaging(firebaseApp);
 
 window.AppAuth = {
   signIn: () => signInWithPopup(auth, provider),
@@ -41,7 +52,19 @@ window.AppAuth = {
   },
   saveUserData: async (uid, data) => {
     await setDoc(doc(db, 'users', uid), { ...data, updatedAt: Date.now() }, { merge: true });
-  }
+  },
+  saveFcmToken: async (uid, token) => {
+    await setDoc(doc(db, 'users', uid), { fcmTokens: arrayUnion(token) }, { merge: true });
+  },
+  getFcmToken: async () => {
+    try {
+      const registration = await navigator.serviceWorker.ready;
+      return await getToken(messaging, { vapidKey: VAPID_KEY, serviceWorkerRegistration: registration });
+    } catch {
+      return null;
+    }
+  },
+  onForegroundMessage: (callback) => onMessage(messaging, callback)
 };
 
 window.dispatchEvent(new Event('appauth-ready'));

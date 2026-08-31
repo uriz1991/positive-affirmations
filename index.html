@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="אמירות חיוביות - משפטים חיוביים, מנטרות ואמונה. כל יום, כל רגע. בחינם, בלי פרסומות.">
   <meta name="theme-color" content="#6c63ff">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://apis.google.com https://www.gstatic.com https://www.googletagmanager.com; style-src 'self' 'unsafe-inline'; img-src 'self' https://lh3.googleusercontent.com; media-src 'self'; connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebaseinstallations.googleapis.com https://firestore.googleapis.com https://www.google-analytics.com https://*.google-analytics.com https://www.googletagmanager.com; frame-src https://positive-affirmations-9f382.firebaseapp.com https://accounts.google.com;">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://apis.google.com https://www.gstatic.com https://www.googletagmanager.com; style-src 'self' 'unsafe-inline'; img-src 'self' https://lh3.googleusercontent.com; media-src 'self'; connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebaseinstallations.googleapis.com https://firestore.googleapis.com https://fcmregistrations.googleapis.com https://fcm.googleapis.com https://www.google-analytics.com https://*.google-analytics.com https://www.googletagmanager.com; frame-src https://positive-affirmations-9f382.firebaseapp.com https://accounts.google.com;">
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="assets/icon-192.png">
   <link rel="apple-touch-icon" href="assets/icon-192.png">
@@ -172,40 +172,15 @@
 
     <div class="setting-group">
       <h3>&#128276; <span data-i18n="remindersTitle">תזכורות</span></h3>
-      <div class="setting-row">
-        <label data-i18n="morningReminder">תזכורת בוקר</label>
-        <div style="display: flex; align-items: center; gap: 10px;">
-          <input type="time" id="morningTime" value="08:00">
-          <label class="toggle">
-            <input type="checkbox" id="morningToggle" checked>
-            <span class="toggle-slider"></span>
-          </label>
-        </div>
-      </div>
-      <div class="setting-row">
-        <label data-i18n="noonReminder">תזכורת צהריים</label>
-        <div style="display: flex; align-items: center; gap: 10px;">
-          <input type="time" id="noonTime" value="13:00">
-          <label class="toggle">
-            <input type="checkbox" id="noonToggle" checked>
-            <span class="toggle-slider"></span>
-          </label>
-        </div>
-      </div>
-      <div class="setting-row">
-        <label data-i18n="eveningReminder">תזכורת ערב</label>
-        <div style="display: flex; align-items: center; gap: 10px;">
-          <input type="time" id="eveningTime" value="21:00">
-          <label class="toggle">
-            <input type="checkbox" id="eveningToggle" checked>
-            <span class="toggle-slider"></span>
-          </label>
-        </div>
-      </div>
+      <div class="reminders-list" id="remindersList"></div>
+      <button class="btn btn-secondary" id="addReminderBtn" style="margin-top: 10px; font-size: 0.85rem;">
+        &#10133; <span data-i18n="addReminder">הוסף תזכורת</span>
+      </button>
       <button class="btn btn-secondary" id="enableNotifications" style="margin-top: 12px; font-size: 0.85rem;">
         &#128276; <span data-i18n="enableNotifications">אפשר התראות</span>
       </button>
       <p id="notificationStatus" style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 8px;"></p>
+      <p id="xiaomiNotice" class="xiaomi-notice" style="display:none" data-i18n="xiaomiNotice"></p>
     </div>
 
     <div class="setting-group">

@@ -1,3 +1,30 @@
+importScripts('https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js');
+
+firebase.initializeApp({
+  apiKey: 'AIzaSyC0AFO8gOk1VizEGnuQBBaoEX6ddH-qyek',
+  authDomain: 'positive-affirmations-9f382.firebaseapp.com',
+  projectId: 'positive-affirmations-9f382',
+  storageBucket: 'positive-affirmations-9f382.firebasestorage.app',
+  messagingSenderId: '388138822180',
+  appId: '1:388138822180:web:98e5d4297847947ffc06b1'
+});
+
+const messaging = firebase.messaging();
+
+// Fires when a push arrives while the app is fully closed / backgrounded
+messaging.onBackgroundMessage((payload) => {
+  const title = payload.notification?.title || payload.data?.title || 'אמירות חיוביות';
+  const body = payload.notification?.body || payload.data?.body || '';
+  self.registration.showNotification(title, {
+    body,
+    icon: './assets/icon-192.png',
+    badge: './assets/icon-192.png',
+    dir: 'rtl',
+    lang: 'he'
+  });
+});
+
 const CACHE_NAME = 'affirmations-v1.2.14';
 
 const SETTINGS_CACHE = 'affirmations-settings';
@@ -86,8 +113,8 @@ self.addEventListener('periodicsync', (event) => {
 });
 
 async function checkAndNotifyFromBackground() {
-  const settings = await getFromSettingsCache('reminder-settings');
-  if (!settings) return;
+  const reminders = await getFromSettingsCache('reminders-list');
+  if (!Array.isArray(reminders) || !reminders.length) return;
 
   const now = new Date();
   const today = now.toDateString();
@@ -96,27 +123,19 @@ async function checkAndNotifyFromBackground() {
   const sentKey = 'reminders-sent-' + today;
   const sent = (await getFromSettingsCache(sentKey)) || {};
 
-  const periods = {
-    morning: 'בוקר טוב!',
-    noon: 'תזכורת צהריים',
-    evening: 'ערב טוב!'
-  };
-
   let updated = false;
-  for (const [period, title] of Object.entries(periods)) {
-    if (!settings[period]?.enabled) continue;
-    if (sent[period]) continue; // already sent today
+  for (const r of reminders) {
+    if (!r.enabled) continue;
+    if (sent[r.id]) continue; // already sent today
+    if (!r.time) continue;
 
-    const time = settings[period].time;
-    if (!time) continue;
-
-    const [h, m] = time.split(':').map(Number);
+    const [h, m] = r.time.split(':').map(Number);
     const settingMinutes = h * 60 + m;
 
     // Send if current time is past the set time (not exact match — periodic sync fires at browser discretion)
     if (currentMinutes >= settingMinutes) {
-      await showNotification(title);
-      sent[period] = true;
+      await showNotification(r.label);
+      sent[r.id] = true;
       updated = true;
     }
   }
@@ -133,7 +152,7 @@ self.addEventListener('message', (event) => {
 
   } else if (event.data.type === 'SAVE_SETTINGS') {
     // App saves settings → also mirror to Cache Storage so SW can read them
-    event.waitUntil(saveToSettingsCache('reminder-settings', event.data.settings));
+    event.waitUntil(saveToSettingsCache('reminders-list', event.data.reminders));
 
   } else if (event.data.type === 'MARK_SENT') {
     // Main app sent a notification → mark in Cache Storage to avoid SW duplicate
