@@ -25,7 +25,7 @@ messaging.onBackgroundMessage((payload) => {
   });
 });
 
-const CACHE_NAME = 'affirmations-v1.2.17';
+const CACHE_NAME = 'affirmations-v1.2.18';
 
 const SETTINGS_CACHE = 'affirmations-settings';
 const ASSETS = [
