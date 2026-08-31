@@ -24,6 +24,10 @@ import {
   getToken,
   onMessage
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging.js';
+import {
+  getFunctions,
+  httpsCallable
+} from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-functions.js';
 
 // Generated in Firebase Console → Project Settings → Cloud Messaging → Web configuration → Generate key pair.
 // This is a public key, safe to ship in client code.
@@ -45,6 +49,9 @@ const auth = getAuth(firebaseApp);
 const provider = new GoogleAuthProvider();
 const db = getFirestore(firebaseApp);
 const messaging = getMessaging(firebaseApp);
+const functions = getFunctions(firebaseApp, 'me-west1');
+const createCheckoutSessionFn = httpsCallable(functions, 'createCheckoutSession');
+const generatePersonalPlanFn = httpsCallable(functions, 'generatePersonalPlan');
 
 window.AppAuth = {
   signIn: () => signInWithPopup(auth, provider),
@@ -78,6 +85,18 @@ window.AppAuth = {
   loadPopularAffirmations: async () => {
     const snap = await getDoc(doc(db, 'stats', 'popular-affirmations'));
     return snap.exists() ? (snap.data().top || []) : [];
+  },
+  loadSubscriptionStatus: async (uid) => {
+    const snap = await getDoc(doc(db, 'subscriptions', uid));
+    return snap.exists() ? !!snap.data().isPro : false;
+  },
+  startCheckout: async (priceId) => {
+    const result = await createCheckoutSessionFn({ priceId });
+    return result.data.url;
+  },
+  generatePersonalPlan: async () => {
+    const result = await generatePersonalPlanFn();
+    return result.data;
   }
 };
 

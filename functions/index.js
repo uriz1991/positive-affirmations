@@ -1,4 +1,5 @@
 const { onSchedule } = require('firebase-functions/v2/scheduler');
+const { onCall, onRequest, HttpsError } = require('firebase-functions/v2/https');
 const { setGlobalOptions } = require('firebase-functions/v2');
 const { defineSecret } = require('firebase-functions/params');
 const { initializeApp } = require('firebase-admin/app');
@@ -7,6 +8,10 @@ const { getMessaging } = require('firebase-admin/messaging');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 const geminiApiKey = defineSecret('GEMINI_API_KEY');
+const stripeSecretKey = defineSecret('STRIPE_SECRET_KEY');
+const stripeWebhookSecret = defineSecret('STRIPE_WEBHOOK_SECRET');
+
+const APP_URL = 'https://uriz1991.github.io/positive-affirmations/';
 
 setGlobalOptions({ region: 'me-west1', maxInstances: 3 });
 
@@ -201,4 +206,136 @@ exports.aggregatePopularAffirmations = onSchedule('every 24 hours', async () => 
     top,
     updatedAt: FieldValue.serverTimestamp()
   });
+});
+
+// ===== Stripe: checkout + webhook =====
+// Subscription status lives in its OWN doc (subscriptions/{uid}), never in
+// users/{uid} — the client's Firestore rule lets a user write their own
+// users/{uid} doc, so a subscription flag there could be self-granted from
+// devtools. subscriptions/{uid} is client-read-only; only this webhook
+// (Admin SDK, bypasses rules) can ever set isPro.
+
+exports.createCheckoutSession = onCall({ secrets: [stripeSecretKey] }, async (request) => {
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', 'Sign in before upgrading.');
+  }
+  const priceId = request.data?.priceId;
+  if (!priceId || typeof priceId !== 'string') {
+    throw new HttpsError('invalid-argument', 'Missing priceId.');
+  }
+
+  const stripe = require('stripe')(stripeSecretKey.value());
+  const uid = request.auth.uid;
+
+  const session = await stripe.checkout.sessions.create({
+    mode: 'subscription',
+    line_items: [{ price: priceId, quantity: 1 }],
+    client_reference_id: uid,
+    metadata: { uid },
+    subscription_data: { metadata: { uid } },
+    success_url: `${APP_URL}?upgraded=1`,
+    cancel_url: APP_URL
+  });
+
+  return { url: session.url };
+});
+
+exports.stripeWebhook = onRequest({ secrets: [stripeSecretKey, stripeWebhookSecret] }, async (req, res) => {
+  const stripe = require('stripe')(stripeSecretKey.value());
+  let event;
+  try {
+    event = stripe.webhooks.constructEvent(req.rawBody, req.headers['stripe-signature'], stripeWebhookSecret.value());
+  } catch (err) {
+    res.status(400).send(`Webhook signature error: ${err.message}`);
+    return;
+  }
+
+  try {
+    if (event.type === 'checkout.session.completed') {
+      const session = event.data.object;
+      const uid = session.client_reference_id || session.metadata?.uid;
+      if (uid) {
+        await db.doc('subscriptions/' + uid).set({
+          isPro: true,
+          stripeCustomerId: session.customer,
+          updatedAt: FieldValue.serverTimestamp()
+        }, { merge: true });
+        // Reverse lookup so the cancellation event (which only carries the
+        // Stripe customer id, not our uid) can find the right user.
+        await db.doc('stripeCustomers/' + session.customer).set({ uid });
+      }
+    } else if (event.type === 'customer.subscription.deleted') {
+      const subscription = event.data.object;
+      const customerId = subscription.customer;
+      const lookup = await db.doc('stripeCustomers/' + customerId).get();
+      const uid = lookup.data()?.uid || subscription.metadata?.uid;
+      if (uid) {
+        await db.doc('subscriptions/' + uid).set({
+          isPro: false,
+          updatedAt: FieldValue.serverTimestamp()
+        }, { merge: true });
+      }
+    }
+  } catch {
+    // Stripe retries on non-2xx; still ack so a transient Firestore error
+    // doesn't cause endless webhook retries — worth checking logs if this hits.
+  }
+
+  res.json({ received: true });
+});
+
+// ===== AI Coach: personalized plan (paid only, checked server-side) =====
+exports.generatePersonalPlan = onCall({ secrets: [geminiApiKey] }, async (request) => {
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', 'Sign in first.');
+  }
+  const uid = request.auth.uid;
+
+  const subSnap = await db.doc('subscriptions/' + uid).get();
+  if (!subSnap.data()?.isPro) {
+    throw new HttpsError('permission-denied', 'This feature requires an active subscription.');
+  }
+
+  const userSnap = await db.doc('users/' + uid).get();
+  const userData = userSnap.data() || {};
+  const goal = userData.goalData?.goal || '';
+  if (!goal) {
+    throw new HttpsError('failed-precondition', 'Set a goal before generating a personal plan.');
+  }
+  const journal = Array.isArray(userData.journal) ? userData.journal.slice(-10) : [];
+  const completedSteps = (userData.goalData?.steps || []).filter(s => s.done).map(s => s.text);
+
+  const genAI = new GoogleGenerativeAI(geminiApiKey.value());
+  const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+
+  const prompt = [
+    `היעד של המשתמש: "${goal}"`,
+    completedSteps.length ? `צעדים שכבר השלים: ${completedSteps.join('; ')}` : '',
+    journal.length ? `רגעי אמונה שרשם ביומן שלו: ${journal.join('; ')}` : '',
+    '',
+    'בהתבסס על זה, כתוב עבורו:',
+    '1. שמונה משפטי אמירה חיוביים אישיים וספציפיים ליעד הזה (לא כלליים) — כל אחד בשורה נפרדת, בגוף ראשון, בניסוח ניטרלי מגדרית.',
+    '2. שלוש תובנות קצרות (2-3 משפטים כל אחת) בהשראת "חשוב והתעשר" ו"מדע ההתעשרות" על איך לזהות הזדמנויות הקשורות ליעד הזה בחיי היומיום.',
+    '',
+    'החזר JSON תקני בלבד, במבנה: {"affirmations": ["...", ...], "insights": ["...", "...", "..."]}'
+  ].filter(Boolean).join('\n');
+
+  const result = await model.generateContent(prompt);
+  let parsed;
+  try {
+    const raw = result.response.text().replace(/```json|```/g, '').trim();
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new HttpsError('internal', 'Could not parse the generated plan — try again.');
+  }
+
+  await db.doc('users/' + uid).set({
+    personalPlan: {
+      affirmations: parsed.affirmations || [],
+      insights: parsed.insights || [],
+      generatedAt: FieldValue.serverTimestamp()
+    }
+  }, { merge: true });
+
+  return parsed;
 });

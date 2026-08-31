@@ -12,6 +12,10 @@ let goalData = { goal: '', steps: [] };
 let visualizeInterval = null;
 let currentUser = null;
 let cloudSyncEnabled = false;
+let isPro = false;
+
+// Created in Stripe Dashboard → Product catalog → your subscription product.
+const STRIPE_MONTHLY_PRICE_ID = 'PASTE_STRIPE_PRICE_ID_HERE';
 
 const GOAL_EXTRA_PATTERNS = {
   he: {
@@ -128,6 +132,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
   if (Notification.permission === 'granted') registerFcmToken();
+
+  if (new URLSearchParams(window.location.search).get('upgraded') === '1') {
+    showToast(t('toastUpgradeProcessing'));
+    history.replaceState({}, '', window.location.pathname);
+    setTimeout(checkSubscriptionStatus, 3000); // give the Stripe webhook a moment to land
+  }
 });
 
 // ===== Show Random Affirmation =====
@@ -368,6 +378,10 @@ function setupEventListeners() {
   // Google sign-in
   document.getElementById('googleSignInBtn').addEventListener('click', handleGoogleSignIn);
   document.getElementById('googleSignOutBtn').addEventListener('click', handleGoogleSignOut);
+
+  // Upgrade / AI Coach
+  document.getElementById('upgradeAiBtn').addEventListener('click', handleUpgradeClick);
+  document.getElementById('regeneratePlanBtn').addEventListener('click', handleGeneratePlan);
 
   // Goal banner
   document.getElementById('goalBannerEmpty').addEventListener('click', () => {
@@ -1444,9 +1458,12 @@ async function handleAuthChange(user) {
     document.getElementById('accountName').textContent = user.displayName || user.email || '';
     await syncFromCloud(user.uid);
     if (Notification.permission === 'granted') registerFcmToken();
+    await checkSubscriptionStatus();
   } else {
     signedOutEl.style.display = '';
     signedInEl.style.display = 'none';
+    isPro = false;
+    updateUpgradeChipUI();
   }
 }
 
@@ -1579,6 +1596,92 @@ async function loadGeneratedContent() {
 
   renderCategoryChips();
   updateCategoryChips();
+}
+
+// ===== Subscription / AI Coach =====
+async function checkSubscriptionStatus() {
+  if (!window.AppAuth?.loadSubscriptionStatus || !currentUser) return;
+  try {
+    isPro = await window.AppAuth.loadSubscriptionStatus(currentUser.uid);
+  } catch {
+    isPro = false;
+  }
+  updateUpgradeChipUI();
+  if (isPro) renderStoredPersonalPlan();
+}
+
+function updateUpgradeChipUI() {
+  const btn = document.getElementById('upgradeAiBtn');
+  const planEl = document.getElementById('personalPlan');
+  if (!btn) return;
+  if (isPro) {
+    btn.textContent = t('proActiveChip');
+    btn.disabled = true;
+    if (planEl) planEl.style.display = '';
+  } else {
+    btn.textContent = t('upgradeAiChip');
+    btn.disabled = false;
+    if (planEl) planEl.style.display = 'none';
+  }
+}
+
+async function handleUpgradeClick() {
+  if (!currentUser) {
+    showToast(t('toastSignInFirst'));
+    return;
+  }
+  if (!window.AppAuth?.startCheckout) return;
+  try {
+    const url = await window.AppAuth.startCheckout(STRIPE_MONTHLY_PRICE_ID);
+    window.location.href = url;
+  } catch {
+    showToast(t('toastCheckoutError'));
+  }
+}
+
+async function handleGeneratePlan() {
+  if (!window.AppAuth?.generatePersonalPlan) return;
+  const btn = document.getElementById('regeneratePlanBtn');
+  if (btn) btn.disabled = true;
+  try {
+    const plan = await window.AppAuth.generatePersonalPlan();
+    renderPersonalPlan(plan);
+    logAnalyticsEvent('personal_plan_generated');
+  } catch {
+    showToast(t('toastPlanError'));
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+function renderStoredPersonalPlan() {
+  // Shown immediately from the last generated plan, before the user asks to regenerate.
+  if (!window.AppAuth?.loadUserData || !currentUser) return;
+  window.AppAuth.loadUserData(currentUser.uid).then((data) => {
+    if (data?.personalPlan) renderPersonalPlan(data.personalPlan);
+  }).catch(() => {});
+}
+
+function renderPersonalPlan(plan) {
+  const affEl = document.getElementById('personalPlanAffirmations');
+  const insightsEl = document.getElementById('personalPlanInsights');
+  if (!affEl || !insightsEl) return;
+
+  affEl.innerHTML = '';
+  (plan.affirmations || []).forEach((text) => {
+    const p = document.createElement('p');
+    p.style.cssText = 'font-size:0.85rem; padding:6px 0; border-bottom:1px solid var(--card-border);';
+    p.textContent = text;
+    affEl.appendChild(p);
+  });
+
+  insightsEl.innerHTML = '';
+  (plan.insights || []).forEach((text) => {
+    const p = document.createElement('p');
+    p.style.cssText = 'font-size:0.8rem; color:var(--text-secondary); padding:6px 0;';
+    p.textContent = '💡 ' + text;
+    insightsEl.appendChild(p);
+  });
 }
 
 function logAnalyticsEvent(name, params) {
