@@ -22,7 +22,7 @@ import {
 
 // Generated in Firebase Console → Project Settings → Cloud Messaging → Web configuration → Generate key pair.
 // This is a public key, safe to ship in client code.
-const VAPID_KEY = 'PASTE_VAPID_PUBLIC_KEY_HERE';
+const VAPID_KEY = 'BEJBV-sQctztQOt3piWukn6KaXtqGWr0yT9_0GVhVSqpcVgc1xPu7xc1Z71KnKCv4vlz3nLoHhcv69VqJSZ550s';
 
 const firebaseConfig = {
   apiKey: 'AIzaSyC0AFO8gOk1VizEGnuQBBaoEX6ddH-qyek',
