@@ -12,7 +12,12 @@ import {
   doc,
   getDoc,
   setDoc,
-  arrayUnion
+  arrayUnion,
+  collection,
+  query,
+  orderBy,
+  limit,
+  getDocs
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 import {
   getMessaging,
@@ -64,7 +69,16 @@ window.AppAuth = {
       return null;
     }
   },
-  onForegroundMessage: (callback) => onMessage(messaging, callback)
+  onForegroundMessage: (callback) => onMessage(messaging, callback),
+  loadGeneratedAffirmations: async () => {
+    const q = query(collection(db, 'generated-affirmations'), orderBy('createdAt', 'desc'), limit(300));
+    const snap = await getDocs(q);
+    return snap.docs.map((d) => d.data());
+  },
+  loadPopularAffirmations: async () => {
+    const snap = await getDoc(doc(db, 'stats', 'popular-affirmations'));
+    return snap.exists() ? (snap.data().top || []) : [];
+  }
 };
 
 window.dispatchEvent(new Event('appauth-ready'));

@@ -80,6 +80,7 @@ async function loadLanguage(lang) {
   updateCategoryChips();
   showRandomAffirmation();
   updateLangButtons();
+  loadGeneratedContent();
 }
 
 function applyTranslations() {
@@ -1535,6 +1536,49 @@ async function handleGoogleSignOut() {
   if (!window.AppAuth) return;
   await window.AppAuth.signOut();
   showToast(t('toastSignedOut'));
+}
+
+// ===== Growing affirmation pool (AI-generated daily + cross-user favorites) =====
+// Hebrew only for now. Cached per calendar day so it's one Firestore read
+// per day per visitor, not one per page load.
+async function loadGeneratedContent() {
+  if (!window.AppAuth?.loadGeneratedAffirmations || currentLang !== 'he' || !affirmationsData) return;
+
+  const today = new Date().toDateString();
+  const cacheKey = 'generated-content-cache';
+  let cached = null;
+  try { cached = JSON.parse(localStorage.getItem(cacheKey) || 'null'); } catch {}
+
+  let generated, popular;
+  if (cached && cached.date === today) {
+    ({ generated, popular } = cached);
+  } else {
+    try {
+      [generated, popular] = await Promise.all([
+        window.AppAuth.loadGeneratedAffirmations(),
+        window.AppAuth.loadPopularAffirmations()
+      ]);
+      localStorage.setItem(cacheKey, JSON.stringify({ date: today, generated, popular }));
+    } catch {
+      return;
+    }
+  }
+
+  if (Array.isArray(generated)) {
+    affirmationsData.affirmations.push(
+      ...generated.filter(g => g?.language === 'he' && g.text && g.category)
+    );
+  }
+
+  if (Array.isArray(popular) && popular.length) {
+    if (!affirmationsData.categories.popular) {
+      affirmationsData.categories.popular = t('categoryPopular');
+    }
+    affirmationsData.affirmations.push(...popular.map(p => ({ text: p.text, category: 'popular' })));
+  }
+
+  renderCategoryChips();
+  updateCategoryChips();
 }
 
 function logAnalyticsEvent(name, params) {

@@ -109,6 +109,7 @@
   "toastSyncError": "Error de sincronización, tus datos se guardaron solo en este dispositivo",
   "toastSynced": "Tus datos se sincronizaron con la nube ✓",
   "privacyLink": "Política de privacidad",
+  "categoryPopular": "Las más queridas",
   "addReminder": "Agregar recordatorio",
   "remindersMax": "Puedes agregar hasta 10 recordatorios",
   "newReminderLabel": "Nuevo recordatorio",

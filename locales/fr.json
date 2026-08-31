@@ -109,6 +109,7 @@
   "toastSyncError": "Échec de la synchronisation, vos données sont enregistrées sur cet appareil uniquement",
   "toastSynced": "Vos données ont été synchronisées avec le cloud ✓",
   "privacyLink": "Politique de confidentialité",
+  "categoryPopular": "Les plus aimées",
   "addReminder": "Ajouter un rappel",
   "remindersMax": "Vous pouvez ajouter jusqu'à 10 rappels",
   "newReminderLabel": "Nouveau rappel",

@@ -1,8 +1,12 @@
 const { onSchedule } = require('firebase-functions/v2/scheduler');
 const { setGlobalOptions } = require('firebase-functions/v2');
+const { defineSecret } = require('firebase-functions/params');
 const { initializeApp } = require('firebase-admin/app');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { getMessaging } = require('firebase-admin/messaging');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
+
+const geminiApiKey = defineSecret('GEMINI_API_KEY');
 
 setGlobalOptions({ region: 'me-west1', maxInstances: 3 });
 
@@ -102,4 +106,99 @@ exports.sendScheduledReminders = onSchedule('every 5 minutes', async () => {
       }, { merge: true });
     }
   }));
+});
+
+// ===== Daily affirmation generation (Gemini) =====
+const CATEGORIES = {
+  torah: 'אמונה יהודית',
+  nachman: 'רבי נחמן מברסלב',
+  faith: 'אמונה והשגחה',
+  confidence: 'ביטחון עצמי',
+  calm: 'שלווה ורוגע',
+  success: 'הצלחה ושפע',
+  'self-love': 'אהבה עצמית',
+  change: 'התמודדות עם שינוי',
+  gratitude: 'הכרת תודה',
+  wealth: 'מנטליות עושר'
+};
+
+const AFFIRMATIONS_PER_DAY = 25;
+
+exports.generateDailyAffirmations = onSchedule({
+  schedule: '0 3 * * *',
+  timeZone: 'Asia/Jerusalem',
+  timeoutSeconds: 300,
+  secrets: [geminiApiKey]
+}, async () => {
+  const genAI = new GoogleGenerativeAI(geminiApiKey.value());
+  const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+
+  // Give the model real examples of what users actually loved, as style
+  // reference only — it must write new original lines, never copy these.
+  const popularSnap = await db.doc('stats/popular-affirmations').get();
+  const popularExamples = (popularSnap.data()?.top || []).slice(0, 8).map(p => p.text);
+
+  const categoryKeys = Object.keys(CATEGORIES);
+  const perCategory = Math.max(1, Math.round(AFFIRMATIONS_PER_DAY / categoryKeys.length));
+  const batch = db.batch();
+  let written = 0;
+
+  for (const key of categoryKeys) {
+    const prompt = [
+      `כתוב ${perCategory} משפטי אמירה חיובית קצרים בעברית בנושא "${CATEGORIES[key]}".`,
+      'כללים חשובים:',
+      '- כל משפט חייב לפנות לכל המגדרים, לא רק לגבר או רק לאישה. הימנע מפעלים בגוף שני/ראשון שמחייבים נטייה מגדרית (למשל "אני מאמין" או "את מרגישה"). במקום זה נסח בצורה ניטרלית מגדרית, או השתמש בצורת "אני מאמין/ה" עם לוכסן כשאין ברירה.',
+      '- כל משפט בשורה נפרדת, בלי מספור, בלי מרכאות, בלי הסברים נוספים.',
+      '- אל תחזור על משפטים נפוצים או קלישאתיים מדי.',
+      popularExamples.length
+        ? `לרפרנס סגנוני בלבד (אל תעתיק, רק קבל השראה מהטון שעבד למשתמשים):\n${popularExamples.join('\n')}`
+        : ''
+    ].filter(Boolean).join('\n');
+
+    try {
+      const result = await model.generateContent(prompt);
+      const text = result.response.text();
+      const lines = text.split('\n').map(l => l.replace(/^[-•\d.)\s]+/, '').trim()).filter(Boolean).slice(0, perCategory);
+
+      lines.forEach((line) => {
+        const ref = db.collection('generated-affirmations').doc();
+        batch.set(ref, {
+          text: line,
+          category: key,
+          language: 'he',
+          createdAt: FieldValue.serverTimestamp()
+        });
+        written++;
+      });
+    } catch {
+      // One category failing (e.g. transient API error) shouldn't block the rest.
+    }
+  }
+
+  if (written > 0) await batch.commit();
+});
+
+// ===== Aggregate what users actually favorited, across everyone =====
+exports.aggregatePopularAffirmations = onSchedule('every 24 hours', async () => {
+  const usersSnap = await db.collection('users').get();
+  const counts = new Map();
+
+  usersSnap.docs.forEach((doc) => {
+    const favorites = doc.data().favorites;
+    if (!Array.isArray(favorites)) return;
+    favorites.forEach((text) => {
+      if (typeof text !== 'string' || !text.trim()) return;
+      counts.set(text, (counts.get(text) || 0) + 1);
+    });
+  });
+
+  const top = [...counts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 50)
+    .map(([text, count]) => ({ text, count }));
+
+  await db.doc('stats/popular-affirmations').set({
+    top,
+    updatedAt: FieldValue.serverTimestamp()
+  });
 });

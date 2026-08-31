@@ -109,6 +109,7 @@
   "toastSyncError": "Sync failed, your data was saved on this device only",
   "toastSynced": "Your data was synced with the cloud ✓",
   "privacyLink": "Privacy Policy",
+  "categoryPopular": "Most Loved",
   "addReminder": "Add reminder",
   "remindersMax": "You can add up to 10 reminders",
   "newReminderLabel": "New reminder",
