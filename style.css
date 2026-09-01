@@ -696,6 +696,116 @@ body {
   padding: 8px 10px;
 }
 
+/* Settings tabs */
+.settings-tabs {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding-bottom: 8px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--card-border);
+}
+
+.settings-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.settings-tab {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 0.75rem;
+  padding: 8px 10px;
+  border-radius: 10px;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: background 0.2s, color 0.2s;
+}
+
+.settings-tab.active {
+  background: var(--accent);
+  color: white;
+}
+
+.tab-content {
+  display: none;
+}
+
+.tab-content.active {
+  display: block;
+}
+
+/* AI Coach card */
+.ai-coach-card {
+  background: linear-gradient(135deg, rgba(108, 99, 255, 0.12), rgba(162, 155, 254, 0.06));
+  border: 1px solid var(--card-border);
+  border-radius: 14px;
+  padding: 14px;
+  margin-bottom: 20px;
+}
+
+.ai-coach-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.ai-coach-icon {
+  font-size: 1.6rem;
+  flex-shrink: 0;
+}
+
+.ai-coach-header h3 {
+  font-size: 0.9rem;
+  color: var(--accent-light);
+  margin-bottom: 3px;
+}
+
+.ai-coach-tagline {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.ai-coach-note {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+
+/* Upgrade explanation dialog */
+.upgrade-dialog {
+  text-align: start;
+}
+
+.upgrade-benefits {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.upgrade-benefits li {
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.upgrade-price {
+  font-size: 0.85rem;
+  color: var(--accent-light);
+  font-weight: 600;
+  text-align: center;
+  margin-bottom: 16px;
+}
+
 /* Google sign-in */
 .google-signin-btn {
   display: flex;

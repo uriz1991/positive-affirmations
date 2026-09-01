@@ -391,8 +391,28 @@ function setupEventListeners() {
   document.getElementById('shareInviteBtn').addEventListener('click', shareInviteLink);
 
   // Upgrade / AI Coach
-  document.getElementById('upgradeAiBtn').addEventListener('click', handleUpgradeClick);
+  document.getElementById('upgradeAiBtn').addEventListener('click', () => {
+    if (isPro) return; // disabled state already covers this, but guard anyway
+    document.getElementById('upgradeDialog').classList.add('active');
+  });
+  document.getElementById('upgradeCancelBtn').addEventListener('click', () => {
+    document.getElementById('upgradeDialog').classList.remove('active');
+  });
+  document.getElementById('upgradeConfirmBtn').addEventListener('click', () => {
+    document.getElementById('upgradeDialog').classList.remove('active');
+    handleUpgradeClick();
+  });
   document.getElementById('regeneratePlanBtn').addEventListener('click', handleGeneratePlan);
+
+  // Settings tabs
+  document.getElementById('settingsTabs').addEventListener('click', (e) => {
+    const tabBtn = e.target.closest('.settings-tab');
+    if (!tabBtn) return;
+    document.querySelectorAll('.settings-tab').forEach(t => t.classList.remove('active'));
+    tabBtn.classList.add('active');
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    document.querySelector(`.tab-content[data-tab-content="${tabBtn.dataset.tab}"]`).classList.add('active');
+  });
 
   // Goal banner
   document.getElementById('goalBannerEmpty').addEventListener('click', () => {
@@ -1642,7 +1662,16 @@ function updateUpgradeChipUI() {
     btn.textContent = t('upgradeAiChip');
     btn.disabled = false;
     if (planEl) planEl.style.display = 'none';
+    removeAiCoachFromPool();
   }
+}
+
+function removeAiCoachFromPool() {
+  if (!affirmationsData) return;
+  affirmationsData.affirmations = affirmationsData.affirmations.filter(a => a.category !== 'ai-coach');
+  delete affirmationsData.categories['ai-coach'];
+  renderCategoryChips();
+  updateCategoryChips();
 }
 
 async function handleUpgradeClick() {
@@ -1702,6 +1731,24 @@ function renderPersonalPlan(plan) {
     p.textContent = '💡 ' + text;
     insightsEl.appendChild(p);
   });
+
+  mergePersonalPlanIntoPool(plan);
+}
+
+// Makes the paid AI content actually show up in everyday use — not just a
+// list sitting in Settings that a paying user has no reason to revisit.
+function mergePersonalPlanIntoPool(plan) {
+  if (!affirmationsData || !Array.isArray(plan.affirmations) || !plan.affirmations.length) return;
+
+  affirmationsData.affirmations = affirmationsData.affirmations.filter(a => a.category !== 'ai-coach');
+  affirmationsData.affirmations.push(
+    ...plan.affirmations.map(text => ({ text, category: 'ai-coach' }))
+  );
+  if (!affirmationsData.categories['ai-coach']) {
+    affirmationsData.categories['ai-coach'] = t('categoryAiCoach');
+  }
+  renderCategoryChips();
+  updateCategoryChips();
 }
 
 // ===== Referral program =====
