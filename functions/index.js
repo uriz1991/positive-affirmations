@@ -2,6 +2,7 @@ const { onSchedule } = require('firebase-functions/v2/scheduler');
 const { onCall, onRequest, HttpsError } = require('firebase-functions/v2/https');
 const { setGlobalOptions } = require('firebase-functions/v2');
 const { defineSecret } = require('firebase-functions/params');
+const logger = require('firebase-functions/logger');
 const { initializeApp } = require('firebase-admin/app');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { getMessaging } = require('firebase-admin/messaging');
@@ -12,6 +13,14 @@ const stripeSecretKey = defineSecret('STRIPE_SECRET_KEY');
 const stripeWebhookSecret = defineSecret('STRIPE_WEBHOOK_SECRET');
 
 const APP_URL = 'https://uriz1991.github.io/positive-affirmations/';
+
+// Secret Manager values have shown up with stray whitespace/newlines from
+// copy-paste in the past (e.g. a trailing \n makes Stripe reject an
+// otherwise-correct key with "Invalid API Key") — trim defensively everywhere
+// a secret is read.
+function secretValue(secretParam) {
+  return secretParam.value().trim();
+}
 
 setGlobalOptions({ region: 'me-west1', maxInstances: 3 });
 
@@ -135,7 +144,7 @@ exports.generateDailyAffirmations = onSchedule({
   timeoutSeconds: 300,
   secrets: [geminiApiKey]
 }, async () => {
-  const genAI = new GoogleGenerativeAI(geminiApiKey.value());
+  const genAI = new GoogleGenerativeAI(secretValue(geminiApiKey));
   const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
 
   // Give the model real examples of what users actually loved, as style
@@ -224,28 +233,35 @@ exports.createCheckoutSession = onCall({ secrets: [stripeSecretKey] }, async (re
     throw new HttpsError('invalid-argument', 'Missing priceId.');
   }
 
-  const stripe = require('stripe')(stripeSecretKey.value());
+  const stripe = require('stripe')(secretValue(stripeSecretKey));
   const uid = request.auth.uid;
 
-  const session = await stripe.checkout.sessions.create({
-    mode: 'subscription',
-    line_items: [{ price: priceId, quantity: 1 }],
-    client_reference_id: uid,
-    metadata: { uid },
-    subscription_data: { metadata: { uid } },
-    success_url: `${APP_URL}?upgraded=1`,
-    cancel_url: APP_URL
-  });
+  let session;
+  try {
+    session = await stripe.checkout.sessions.create({
+      mode: 'subscription',
+      line_items: [{ price: priceId, quantity: 1 }],
+      client_reference_id: uid,
+      metadata: { uid },
+      subscription_data: { metadata: { uid } },
+      success_url: `${APP_URL}?upgraded=1`,
+      cancel_url: APP_URL
+    });
+  } catch (err) {
+    logger.error('Stripe checkout session creation failed', { message: err.message, type: err.type });
+    throw new HttpsError('internal', `Stripe error: ${err.message}`);
+  }
 
   return { url: session.url };
 });
 
 exports.stripeWebhook = onRequest({ secrets: [stripeSecretKey, stripeWebhookSecret] }, async (req, res) => {
-  const stripe = require('stripe')(stripeSecretKey.value());
+  const stripe = require('stripe')(secretValue(stripeSecretKey));
   let event;
   try {
-    event = stripe.webhooks.constructEvent(req.rawBody, req.headers['stripe-signature'], stripeWebhookSecret.value());
+    event = stripe.webhooks.constructEvent(req.rawBody, req.headers['stripe-signature'], secretValue(stripeWebhookSecret));
   } catch (err) {
+    logger.error('Stripe webhook signature verification failed', { message: err.message });
     res.status(400).send(`Webhook signature error: ${err.message}`);
     return;
   }
@@ -276,9 +292,10 @@ exports.stripeWebhook = onRequest({ secrets: [stripeSecretKey, stripeWebhookSecr
         }, { merge: true });
       }
     }
-  } catch {
+  } catch (err) {
     // Stripe retries on non-2xx; still ack so a transient Firestore error
-    // doesn't cause endless webhook retries — worth checking logs if this hits.
+    // doesn't cause endless webhook retries — logged so it's not silent.
+    logger.error('Stripe webhook handling failed', { message: err.message, eventType: event?.type });
   }
 
   res.json({ received: true });
@@ -348,7 +365,7 @@ exports.generatePersonalPlan = onCall({ secrets: [geminiApiKey] }, async (reques
   const journal = Array.isArray(userData.journal) ? userData.journal.slice(-10) : [];
   const completedSteps = (userData.goalData?.steps || []).filter(s => s.done).map(s => s.text);
 
-  const genAI = new GoogleGenerativeAI(geminiApiKey.value());
+  const genAI = new GoogleGenerativeAI(secretValue(geminiApiKey));
   const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
 
   const prompt = [
@@ -363,7 +380,14 @@ exports.generatePersonalPlan = onCall({ secrets: [geminiApiKey] }, async (reques
     'החזר JSON תקני בלבד, במבנה: {"affirmations": ["...", ...], "insights": ["...", "...", "..."]}'
   ].filter(Boolean).join('\n');
 
-  const result = await model.generateContent(prompt);
+  let result;
+  try {
+    result = await model.generateContent(prompt);
+  } catch (err) {
+    logger.error('Gemini generation failed for personal plan', { message: err.message });
+    throw new HttpsError('internal', `AI generation failed: ${err.message}`);
+  }
+
   let parsed;
   try {
     const raw = result.response.text().replace(/```json|```/g, '').trim();
