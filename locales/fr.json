@@ -127,6 +127,7 @@
   "manageSubscription": "⚙️ Gérer / annuler l'abonnement",
   "toastPlanNeedsGoal": "Définissez d'abord un grand objectif dans l'onglet \"Objectif & IA\", puis nous pourrons générer un plan",
   "toastPortalError": "Impossible d'ouvrir la gestion de l'abonnement, réessayez",
+  "inviteCount": "🎉 Vous avez invité {n} amis jusqu'à présent !",
   "journalTitle": "Journal de croyance",
   "journalDesc": "Quand aujourd'hui avez-vous senti, ne serait-ce qu'un instant, que c'est possible ? Écrivez une phrase.",
   "journalPlaceholder": "Écrivez un moment de croyance...",

@@ -127,6 +127,7 @@
   "manageSubscription": "⚙️ נהל / בטל מנוי",
   "toastPlanNeedsGoal": "קודם תגדיר יעד גדול בטאב \"יעד ו-AI\", ואז נוכל ליצור תוכנית",
   "toastPortalError": "לא הצלחנו לפתוח את ניהול המנוי, נסה שוב",
+  "inviteCount": "🎉 הזמנת {n} חברים עד עכשיו!",
   "journalTitle": "רגעי אמונה",
   "journalDesc": "מתי היום הרגשת לרגע שזה אפשרי? רשום משפט אחד.",
   "journalPlaceholder": "כתוב רגע אמונה...",

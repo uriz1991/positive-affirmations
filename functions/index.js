@@ -362,6 +362,12 @@ exports.redeemReferral = onCall(async (request) => {
 
   await subRef.set({ bonusProUntil: newUntil }, { merge: true });
   await userRef.set({ referredBy: referrerUid }, { merge: true });
+  // Visible on the referrer's own record — both for the in-app "you've
+  // invited N friends" counter and so you can see referral activity per
+  // user directly in the Firestore console without building a dashboard.
+  await db.doc('users/' + referrerUid).set({
+    referralCount: FieldValue.increment(1)
+  }, { merge: true });
 
   return { bonusDays: REFERRAL_BONUS_DAYS };
 });

@@ -127,6 +127,7 @@
   "manageSubscription": "⚙️ Manage / cancel subscription",
   "toastPlanNeedsGoal": "Set a big goal in the \"Goal & AI\" tab first, then we can generate a plan",
   "toastPortalError": "Couldn't open subscription management, please try again",
+  "inviteCount": "🎉 You've invited {n} friends so far!",
   "journalTitle": "Belief Journal",
   "journalDesc": "When today did you feel, even for a moment, that this is possible? Write one sentence.",
   "journalPlaceholder": "Write a belief moment...",

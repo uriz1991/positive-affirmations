@@ -149,6 +149,7 @@ function captureReferralParam() {
   if (ref) {
     localStorage.setItem('referral-code', ref);
     history.replaceState({}, '', window.location.pathname);
+    logAnalyticsEvent('referral_link_visited', { referrer: ref });
   }
 }
 
@@ -1793,6 +1794,7 @@ async function maybeRedeemReferral(user) {
   try {
     await window.AppAuth.redeemReferral(referrerUid);
     showToast(t('toastReferralWelcome'));
+    logAnalyticsEvent('referral_redeemed', { referrer: referrerUid });
   } catch {
     // Already redeemed, self-referral, or referrer not found — fail silently.
   } finally {
@@ -1804,6 +1806,14 @@ function renderInviteLink(user) {
   const el = document.getElementById('inviteLink');
   if (!el) return;
   el.value = `https://uriz1991.github.io/positive-affirmations/?ref=${user.uid}`;
+
+  const countEl = document.getElementById('inviteCount');
+  if (countEl && window.AppAuth?.loadUserData) {
+    window.AppAuth.loadUserData(user.uid).then((data) => {
+      const count = data?.referralCount || 0;
+      countEl.textContent = count > 0 ? t('inviteCount').replace('{n}', count) : '';
+    }).catch(() => {});
+  }
 }
 
 async function shareInviteLink() {

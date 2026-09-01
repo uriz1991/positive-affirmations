@@ -127,6 +127,7 @@
   "manageSubscription": "⚙️ Gestionar / cancelar suscripción",
   "toastPlanNeedsGoal": "Primero define una gran meta en la pestaña \"Meta e IA\", luego podremos generar un plan",
   "toastPortalError": "No se pudo abrir la gestión de la suscripción, inténtalo de nuevo",
+  "inviteCount": "🎉 ¡Has invitado a {n} amigos hasta ahora!",
   "journalTitle": "Diario de fe",
   "journalDesc": "¿Cuándo hoy sentiste, aunque sea por un momento, que esto es posible? Escribe una frase.",
   "journalPlaceholder": "Escribe un momento de fe...",
