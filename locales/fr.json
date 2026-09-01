@@ -129,7 +129,7 @@
   "journalAdded": "Enregistré dans le journal ✓",
   "accountTitle": "Compte",
   "signInGoogle": "Se connecter avec Google",
-  "accountWhySignIn": "La connexion nous permettra à l'avenir de synchroniser votre objectif et vos progrès entre appareils",
+  "accountWhySignIn": "La connexion synchronise automatiquement votre objectif, journal, favoris et rappels sur tous vos appareils",
   "signOut": "Se déconnecter",
   "toastSignedIn": "Connexion réussie ✓",
   "toastSignedOut": "Déconnecté",

@@ -129,7 +129,7 @@
   "journalAdded": "Saved to journal ✓",
   "accountTitle": "Account",
   "signInGoogle": "Sign in with Google",
-  "accountWhySignIn": "Signing in will let us sync your goal and progress across devices in the future",
+  "accountWhySignIn": "Signing in automatically syncs your goal, journal, favorites, and reminders across all your devices",
   "signOut": "Sign out",
   "toastSignedIn": "Signed in successfully ✓",
   "toastSignedOut": "Signed out",

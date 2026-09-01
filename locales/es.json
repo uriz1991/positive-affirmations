@@ -129,7 +129,7 @@
   "journalAdded": "Guardado en el diario ✓",
   "accountTitle": "Cuenta",
   "signInGoogle": "Iniciar sesión con Google",
-  "accountWhySignIn": "Iniciar sesión nos permitirá en el futuro sincronizar tu meta y progreso entre dispositivos",
+  "accountWhySignIn": "Iniciar sesión sincroniza automáticamente tu meta, diario, favoritos y recordatorios en todos tus dispositivos",
   "signOut": "Cerrar sesión",
   "toastSignedIn": "Sesión iniciada correctamente ✓",
   "toastSignedOut": "Sesión cerrada",
