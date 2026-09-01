@@ -255,6 +255,34 @@ exports.createCheckoutSession = onCall({ secrets: [stripeSecretKey] }, async (re
   return { url: session.url };
 });
 
+// Lets a paying user cancel or manage their own subscription — without this,
+// the only way to cancel is emailing support, which is not acceptable for a
+// real paid product.
+exports.createPortalSession = onCall({ secrets: [stripeSecretKey] }, async (request) => {
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', 'Sign in first.');
+  }
+  const uid = request.auth.uid;
+
+  const subSnap = await db.doc('subscriptions/' + uid).get();
+  const customerId = subSnap.data()?.stripeCustomerId;
+  if (!customerId) {
+    throw new HttpsError('failed-precondition', 'No active subscription found for this account.');
+  }
+
+  const stripe = require('stripe')(secretValue(stripeSecretKey));
+  try {
+    const session = await stripe.billingPortal.sessions.create({
+      customer: customerId,
+      return_url: APP_URL
+    });
+    return { url: session.url };
+  } catch (err) {
+    logger.error('Stripe portal session creation failed', { message: err.message });
+    throw new HttpsError('internal', `Stripe error: ${err.message}`);
+  }
+});
+
 exports.stripeWebhook = onRequest({ secrets: [stripeSecretKey, stripeWebhookSecret] }, async (req, res) => {
   const stripe = require('stripe')(secretValue(stripeSecretKey));
   let event;

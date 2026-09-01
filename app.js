@@ -13,6 +13,7 @@ let visualizeInterval = null;
 let currentUser = null;
 let cloudSyncEnabled = false;
 let isPro = false;
+let lastPersonalPlan = null;
 
 // Created in Stripe Dashboard → Product catalog → your subscription product.
 const STRIPE_MONTHLY_PRICE_ID = 'price_1UAlkS5TpYQiqdPxShalBZVP';
@@ -85,6 +86,7 @@ async function loadLanguage(lang) {
   showRandomAffirmation();
   updateLangButtons();
   loadGeneratedContent();
+  reapplyPersonalPlanIfAny();
 }
 
 function applyTranslations() {
@@ -403,6 +405,7 @@ function setupEventListeners() {
     handleUpgradeClick();
   });
   document.getElementById('regeneratePlanBtn').addEventListener('click', handleGeneratePlan);
+  document.getElementById('manageSubscriptionBtn').addEventListener('click', handleManagePortal);
 
   // Settings tabs
   document.getElementById('settingsTabs').addEventListener('click', (e) => {
@@ -1667,6 +1670,7 @@ function updateUpgradeChipUI() {
 }
 
 function removeAiCoachFromPool() {
+  lastPersonalPlan = null;
   if (!affirmationsData) return;
   affirmationsData.affirmations = affirmationsData.affirmations.filter(a => a.category !== 'ai-coach');
   delete affirmationsData.categories['ai-coach'];
@@ -1696,10 +1700,20 @@ async function handleGeneratePlan() {
     const plan = await window.AppAuth.generatePersonalPlan();
     renderPersonalPlan(plan);
     logAnalyticsEvent('personal_plan_generated');
-  } catch {
-    showToast(t('toastPlanError'));
+  } catch (err) {
+    showToast(err?.code === 'functions/failed-precondition' ? t('toastPlanNeedsGoal') : t('toastPlanError'));
   } finally {
     if (btn) btn.disabled = false;
+  }
+}
+
+async function handleManagePortal() {
+  if (!window.AppAuth?.startPortalSession) return;
+  try {
+    const url = await window.AppAuth.startPortalSession();
+    window.location.href = url;
+  } catch {
+    showToast(t('toastPortalError'));
   }
 }
 
@@ -1711,10 +1725,22 @@ function renderStoredPersonalPlan() {
   }).catch(() => {});
 }
 
+// Re-applies the last rendered plan after a language switch, which reloads
+// affirmationsData from scratch and would otherwise silently drop the paid
+// AI Coach content out of the rotation until the next sign-in.
+function reapplyPersonalPlanIfAny() {
+  if (isPro && lastPersonalPlan) mergePersonalPlanIntoPool(lastPersonalPlan);
+}
+
 function renderPersonalPlan(plan) {
   const affEl = document.getElementById('personalPlanAffirmations');
   const insightsEl = document.getElementById('personalPlanInsights');
+  const emptyEl = document.getElementById('personalPlanEmpty');
   if (!affEl || !insightsEl) return;
+
+  lastPersonalPlan = plan;
+  const hasContent = Array.isArray(plan.affirmations) && plan.affirmations.length > 0;
+  if (emptyEl) emptyEl.style.display = hasContent ? 'none' : '';
 
   affEl.innerHTML = '';
   (plan.affirmations || []).forEach((text) => {

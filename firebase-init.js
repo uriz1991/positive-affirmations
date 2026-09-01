@@ -51,6 +51,7 @@ const db = getFirestore(firebaseApp);
 const messaging = getMessaging(firebaseApp);
 const functions = getFunctions(firebaseApp, 'me-west1');
 const createCheckoutSessionFn = httpsCallable(functions, 'createCheckoutSession');
+const createPortalSessionFn = httpsCallable(functions, 'createPortalSession');
 const generatePersonalPlanFn = httpsCallable(functions, 'generatePersonalPlan');
 const redeemReferralFn = httpsCallable(functions, 'redeemReferral');
 
@@ -97,6 +98,10 @@ window.AppAuth = {
   },
   startCheckout: async (priceId) => {
     const result = await createCheckoutSessionFn({ priceId });
+    return result.data.url;
+  },
+  startPortalSession: async () => {
+    const result = await createPortalSessionFn();
     return result.data.url;
   },
   generatePersonalPlan: async () => {
