@@ -52,6 +52,7 @@ const messaging = getMessaging(firebaseApp);
 const functions = getFunctions(firebaseApp, 'me-west1');
 const createCheckoutSessionFn = httpsCallable(functions, 'createCheckoutSession');
 const generatePersonalPlanFn = httpsCallable(functions, 'generatePersonalPlan');
+const redeemReferralFn = httpsCallable(functions, 'redeemReferral');
 
 window.AppAuth = {
   signIn: () => signInWithPopup(auth, provider),
@@ -88,7 +89,11 @@ window.AppAuth = {
   },
   loadSubscriptionStatus: async (uid) => {
     const snap = await getDoc(doc(db, 'subscriptions', uid));
-    return snap.exists() ? !!snap.data().isPro : false;
+    if (!snap.exists()) return { isPro: false, bonusUntil: null };
+    const data = snap.data();
+    const bonusUntil = data.bonusProUntil?.toDate?.() || null;
+    const bonusActive = bonusUntil && bonusUntil.getTime() > Date.now();
+    return { isPro: !!data.isPro || !!bonusActive, bonusUntil: bonusActive ? bonusUntil : null };
   },
   startCheckout: async (priceId) => {
     const result = await createCheckoutSessionFn({ priceId });
@@ -96,6 +101,10 @@ window.AppAuth = {
   },
   generatePersonalPlan: async () => {
     const result = await generatePersonalPlanFn();
+    return result.data;
+  },
+  redeemReferral: async (referrerUid) => {
+    const result = await redeemReferralFn({ referrerUid });
     return result.data;
   }
 };

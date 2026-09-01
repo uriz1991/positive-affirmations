@@ -284,7 +284,50 @@ exports.stripeWebhook = onRequest({ secrets: [stripeSecretKey, stripeWebhookSecr
   res.json({ received: true });
 });
 
-// ===== AI Coach: personalized plan (paid only, checked server-side) =====
+// ===== Referral program: 7 bonus days of AI Coach per new signup =====
+const REFERRAL_BONUS_DAYS = 7;
+
+exports.redeemReferral = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', 'Sign in first.');
+  }
+  const uid = request.auth.uid;
+  const referrerUid = request.data?.referrerUid;
+  if (!referrerUid || typeof referrerUid !== 'string' || referrerUid === uid) {
+    throw new HttpsError('invalid-argument', 'Invalid referral link.');
+  }
+
+  const userRef = db.doc('users/' + uid);
+  const userSnap = await userRef.get();
+  if (userSnap.data()?.referredBy) {
+    throw new HttpsError('already-exists', 'Referral already redeemed for this account.');
+  }
+
+  const referrerSnap = await db.doc('users/' + referrerUid).get();
+  if (!referrerSnap.exists) {
+    throw new HttpsError('not-found', 'Referrer not found.');
+  }
+
+  const subRef = db.doc('subscriptions/' + referrerUid);
+  const subSnap = await subRef.get();
+  const now = Date.now();
+  const currentUntilMs = subSnap.data()?.bonusProUntil?.toMillis?.() || 0;
+  const newUntil = new Date(Math.max(now, currentUntilMs) + REFERRAL_BONUS_DAYS * 24 * 60 * 60 * 1000);
+
+  await subRef.set({ bonusProUntil: newUntil }, { merge: true });
+  await userRef.set({ referredBy: referrerUid }, { merge: true });
+
+  return { bonusDays: REFERRAL_BONUS_DAYS };
+});
+
+function hasActiveAccess(subData) {
+  if (!subData) return false;
+  if (subData.isPro) return true;
+  const bonusUntilMs = subData.bonusProUntil?.toMillis?.() || 0;
+  return bonusUntilMs > Date.now();
+}
+
+// ===== AI Coach: personalized plan (paid or referral-bonus, checked server-side) =====
 exports.generatePersonalPlan = onCall({ secrets: [geminiApiKey] }, async (request) => {
   if (!request.auth) {
     throw new HttpsError('unauthenticated', 'Sign in first.');
@@ -292,8 +335,8 @@ exports.generatePersonalPlan = onCall({ secrets: [geminiApiKey] }, async (reques
   const uid = request.auth.uid;
 
   const subSnap = await db.doc('subscriptions/' + uid).get();
-  if (!subSnap.data()?.isPro) {
-    throw new HttpsError('permission-denied', 'This feature requires an active subscription.');
+  if (!hasActiveAccess(subSnap.data())) {
+    throw new HttpsError('permission-denied', 'This feature requires an active subscription or referral bonus.');
   }
 
   const userSnap = await db.doc('users/' + uid).get();

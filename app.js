@@ -138,7 +138,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     history.replaceState({}, '', window.location.pathname);
     setTimeout(checkSubscriptionStatus, 3000); // give the Stripe webhook a moment to land
   }
+
+  captureReferralParam();
 });
+
+function captureReferralParam() {
+  const ref = new URLSearchParams(window.location.search).get('ref');
+  if (ref) {
+    localStorage.setItem('referral-code', ref);
+    history.replaceState({}, '', window.location.pathname);
+  }
+}
 
 // ===== Show Random Affirmation =====
 function showRandomAffirmation() {
@@ -378,6 +388,7 @@ function setupEventListeners() {
   // Google sign-in
   document.getElementById('googleSignInBtn').addEventListener('click', handleGoogleSignIn);
   document.getElementById('googleSignOutBtn').addEventListener('click', handleGoogleSignOut);
+  document.getElementById('shareInviteBtn').addEventListener('click', shareInviteLink);
 
   // Upgrade / AI Coach
   document.getElementById('upgradeAiBtn').addEventListener('click', handleUpgradeClick);
@@ -1459,6 +1470,8 @@ async function handleAuthChange(user) {
     await syncFromCloud(user.uid);
     if (Notification.permission === 'granted') registerFcmToken();
     await checkSubscriptionStatus();
+    await maybeRedeemReferral(user);
+    renderInviteLink(user);
   } else {
     signedOutEl.style.display = '';
     signedInEl.style.display = 'none';
@@ -1599,12 +1612,17 @@ async function loadGeneratedContent() {
 }
 
 // ===== Subscription / AI Coach =====
+let proBonusUntil = null;
+
 async function checkSubscriptionStatus() {
   if (!window.AppAuth?.loadSubscriptionStatus || !currentUser) return;
   try {
-    isPro = await window.AppAuth.loadSubscriptionStatus(currentUser.uid);
+    const status = await window.AppAuth.loadSubscriptionStatus(currentUser.uid);
+    isPro = status.isPro;
+    proBonusUntil = status.bonusUntil;
   } catch {
     isPro = false;
+    proBonusUntil = null;
   }
   updateUpgradeChipUI();
   if (isPro) renderStoredPersonalPlan();
@@ -1615,7 +1633,9 @@ function updateUpgradeChipUI() {
   const planEl = document.getElementById('personalPlan');
   if (!btn) return;
   if (isPro) {
-    btn.textContent = t('proActiveChip');
+    btn.textContent = proBonusUntil
+      ? t('proActiveBonusChip').replace('{date}', proBonusUntil.toLocaleDateString(currentLang === 'he' ? 'he-IL' : currentLang))
+      : t('proActiveChip');
     btn.disabled = true;
     if (planEl) planEl.style.display = '';
   } else {
@@ -1682,6 +1702,51 @@ function renderPersonalPlan(plan) {
     p.textContent = '💡 ' + text;
     insightsEl.appendChild(p);
   });
+}
+
+// ===== Referral program =====
+async function maybeRedeemReferral(user) {
+  const referrerUid = localStorage.getItem('referral-code');
+  if (!referrerUid || !window.AppAuth?.redeemReferral) return;
+
+  // Only a brand-new account should redeem — an existing user re-signing in
+  // with a stale ?ref= link in their history shouldn't keep granting bonuses.
+  const isNewAccount = user.metadata?.creationTime === user.metadata?.lastSignInTime;
+  if (!isNewAccount) {
+    localStorage.removeItem('referral-code');
+    return;
+  }
+
+  try {
+    await window.AppAuth.redeemReferral(referrerUid);
+    showToast(t('toastReferralWelcome'));
+  } catch {
+    // Already redeemed, self-referral, or referrer not found — fail silently.
+  } finally {
+    localStorage.removeItem('referral-code');
+  }
+}
+
+function renderInviteLink(user) {
+  const el = document.getElementById('inviteLink');
+  if (!el) return;
+  el.value = `https://uriz1991.github.io/positive-affirmations/?ref=${user.uid}`;
+}
+
+async function shareInviteLink() {
+  const link = document.getElementById('inviteLink')?.value;
+  if (!link) return;
+  const text = t('inviteShareText');
+  if (navigator.share) {
+    try { await navigator.share({ title: t('shareTitle'), text, url: link }); } catch {}
+  } else {
+    try {
+      await navigator.clipboard.writeText(`${text}\n${link}`);
+      showToast(t('toastCopied'));
+    } catch {
+      prompt(t('copyPrompt'), link);
+    }
+  }
 }
 
 function logAnalyticsEvent(name, params) {
