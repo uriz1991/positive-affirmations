@@ -15,7 +15,7 @@ let cloudSyncEnabled = false;
 let isPro = false;
 
 // Created in Stripe Dashboard → Product catalog → your subscription product.
-const STRIPE_MONTHLY_PRICE_ID = 'PASTE_STRIPE_PRICE_ID_HERE';
+const STRIPE_MONTHLY_PRICE_ID = 'price_1UAlkS5TpYQiqdPxShalBZVP';
 
 const GOAL_EXTRA_PATTERNS = {
   he: {
