@@ -1,3 +1,4 @@
+// Deployed automatically via GitHub Actions (.github/workflows/deploy-functions.yml)
 const { onSchedule } = require('firebase-functions/v2/scheduler');
 const { onCall, onRequest, HttpsError } = require('firebase-functions/v2/https');
 const { setGlobalOptions } = require('firebase-functions/v2');
