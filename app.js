@@ -581,21 +581,100 @@ function closeCamera() {
 }
 
 // ===== Share =====
+function generateAffirmationImageCard() {
+  const W = 1080, H = 1080;
+  const canvas = document.createElement('canvas');
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  const isLight = document.body.classList.contains('light-mode');
+
+  const grad = ctx.createLinearGradient(0, 0, W, H);
+  if (isLight) {
+    grad.addColorStop(0, '#f7f5ff');
+    grad.addColorStop(1, '#e4e0ff');
+  } else {
+    grad.addColorStop(0, '#1a1730');
+    grad.addColorStop(1, '#0d0b16');
+  }
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H);
+
+  const text = currentAffirmation ? currentAffirmation.text : '';
+  ctx.direction = currentLang === 'he' ? 'rtl' : 'ltr';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = isLight ? '#1a1a2e' : '#ffffff';
+  const fontSize = text.length > 90 ? 46 : text.length > 50 ? 54 : 64;
+  ctx.font = `700 ${fontSize}px 'Segoe UI', Tahoma, Arial, sans-serif`;
+  wrapCanvasText(ctx, text, W / 2, H / 2, W - 160, fontSize * 1.4);
+
+  ctx.font = `400 30px 'Segoe UI', Tahoma, Arial, sans-serif`;
+  ctx.fillStyle = '#6c63ff';
+  ctx.fillText(t('shareTitle'), W / 2, H - 90);
+
+  return canvas;
+}
+
+function wrapCanvasText(ctx, text, x, y, maxWidth, lineHeight) {
+  const words = text.split(' ');
+  const lines = [];
+  let line = '';
+  for (const word of words) {
+    const testLine = line ? line + ' ' + word : word;
+    if (line && ctx.measureText(testLine).width > maxWidth) {
+      lines.push(line);
+      line = word;
+    } else {
+      line = testLine;
+    }
+  }
+  if (line) lines.push(line);
+  const startY = y - ((lines.length - 1) * lineHeight) / 2;
+  lines.forEach((l, i) => ctx.fillText(l, x, startY + i * lineHeight));
+}
+
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 async function shareAffirmation() {
   const text = currentAffirmation.text;
   const appUrl = 'https://uriz1991.github.io/positive-affirmations/';
   const shareText = `"${text}"\n\n${t('shareText')} 👉 ${appUrl}`;
-  const shareData = { title: t('shareTitle'), text: shareText, url: appUrl };
 
-  if (navigator.share) {
-    try { await navigator.share(shareData); } catch {}
-  } else {
+  let blob = null;
+  try {
+    const canvas = generateAffirmationImageCard();
+    blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+  } catch {}
+
+  if (blob) {
     try {
-      await navigator.clipboard.writeText(shareText);
-      showToast(t('toastCopied'));
-    } catch {
-      prompt(t('copyPrompt'), shareText);
+      const file = new File([blob], 'affirmation.png', { type: 'image/png' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: t('shareTitle'), text: shareText });
+        logAnalyticsEvent('share_image_card');
+        return;
+      }
+    } catch (err) {
+      if (err?.name === 'AbortError') return;
     }
+  }
+
+  if (blob) downloadBlob(blob, 'affirmation.png');
+  try {
+    await navigator.clipboard.writeText(shareText);
+    showToast(t('toastCopied'));
+  } catch {
+    prompt(t('copyPrompt'), shareText);
   }
 }
 
