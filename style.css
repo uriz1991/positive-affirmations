@@ -343,6 +343,20 @@ body {
   opacity: 0.8;
 }
 
+.goal-ai-nudge {
+  display: block;
+  margin: 6px auto 0;
+  background: linear-gradient(135deg, #ffb800, #ff7a00);
+  border: none;
+  color: #2a1800;
+  font-weight: 700;
+  font-size: 0.68rem;
+  padding: 5px 12px;
+  border-radius: 20px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
 .favorite-btn {
   background: none;
   border: none;

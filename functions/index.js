@@ -244,7 +244,7 @@ exports.createCheckoutSession = onCall({ secrets: [stripeSecretKey] }, async (re
       line_items: [{ price: priceId, quantity: 1 }],
       client_reference_id: uid,
       metadata: { uid },
-      subscription_data: { metadata: { uid } },
+      subscription_data: { metadata: { uid }, trial_period_days: 7 },
       success_url: `${APP_URL}?upgraded=1`,
       cancel_url: APP_URL
     });
@@ -397,6 +397,16 @@ exports.generatePersonalPlan = onCall({ secrets: [geminiApiKey] }, async (reques
   if (!goal) {
     throw new HttpsError('failed-precondition', 'Set a goal before generating a personal plan.');
   }
+
+  // ₪14.90/month only covers a handful of Gemini calls — without a cap, one
+  // user hammering "regenerate" could make a single subscriber unprofitable.
+  const DAILY_GEN_LIMIT = 5;
+  const today = new Date().toISOString().slice(0, 10);
+  const genCountToday = userData.aiGenDate === today ? (userData.aiGenCount || 0) : 0;
+  if (genCountToday >= DAILY_GEN_LIMIT) {
+    throw new HttpsError('resource-exhausted', 'Daily plan generation limit reached, try again tomorrow.');
+  }
+
   const journal = Array.isArray(userData.journal) ? userData.journal.slice(-10) : [];
   const completedSteps = (userData.goalData?.steps || []).filter(s => s.done).map(s => s.text);
 
@@ -436,7 +446,9 @@ exports.generatePersonalPlan = onCall({ secrets: [geminiApiKey] }, async (reques
       affirmations: parsed.affirmations || [],
       insights: parsed.insights || [],
       generatedAt: FieldValue.serverTimestamp()
-    }
+    },
+    aiGenCount: genCountToday + 1,
+    aiGenDate: today
   }, { merge: true });
 
   return parsed;

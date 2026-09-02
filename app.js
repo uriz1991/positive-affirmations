@@ -138,7 +138,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (new URLSearchParams(window.location.search).get('upgraded') === '1') {
     showToast(t('toastUpgradeProcessing'));
     history.replaceState({}, '', window.location.pathname);
-    setTimeout(checkSubscriptionStatus, 3000); // give the Stripe webhook a moment to land
+    pollForProAfterUpgrade();
   }
 
   captureReferralParam();
@@ -337,10 +337,17 @@ function setupEventListeners() {
   // Share button
   document.getElementById('shareBtn').addEventListener('click', shareAffirmation);
 
-  // Donate button
+  // Donate / footer upgrade link: pushes toward the real AI Coach subscription
+  // (actual value in return) rather than a generic tip jar, since that's now
+  // the app's real paid tier; Pro users already support that way, so for them
+  // this becomes a thank-you with a one-time-coffee option instead.
   document.getElementById('donateBtn').addEventListener('click', (e) => {
     e.preventDefault();
-    window.open('https://buymeacoffee.com/uriel.zion', '_blank', 'noopener,noreferrer');
+    if (isPro) {
+      window.open('https://buymeacoffee.com/uriel.zion', '_blank', 'noopener,noreferrer');
+    } else {
+      document.getElementById('upgradeDialog').classList.add('active');
+    }
   });
 
   // Settings
@@ -407,6 +414,15 @@ function setupEventListeners() {
   });
   document.getElementById('regeneratePlanBtn').addEventListener('click', handleGeneratePlan);
   document.getElementById('manageSubscriptionBtn').addEventListener('click', handleManagePortal);
+  document.getElementById('upgradeSuccessCloseBtn').addEventListener('click', () => {
+    document.getElementById('upgradeSuccessDialog').classList.remove('active');
+  });
+  document.getElementById('upgradeSuccessGenerateBtn').addEventListener('click', () => {
+    document.getElementById('upgradeSuccessDialog').classList.remove('active');
+    openSettings();
+    document.querySelector('.settings-tab[data-tab="goal"]')?.click();
+    setTimeout(handleGeneratePlan, 350);
+  });
 
   // Settings tabs
   document.getElementById('settingsTabs').addEventListener('click', (e) => {
@@ -425,6 +441,10 @@ function setupEventListeners() {
   });
   document.getElementById('goalBanner').addEventListener('click', openVisualize);
   document.getElementById('saveGoalBtn').addEventListener('click', handleSaveGoal);
+  document.getElementById('goalAiNudge').addEventListener('click', () => {
+    logAnalyticsEvent('goal_ai_nudge_clicked');
+    document.getElementById('upgradeDialog').classList.add('active');
+  });
   document.getElementById('goalInput').addEventListener('keypress', (e) => {
     if (e.key === 'Enter') handleSaveGoal();
   });
@@ -1361,15 +1381,18 @@ function toggleGoalStep(index) {
 function renderGoalBanner() {
   const banner = document.getElementById('goalBanner');
   const empty = document.getElementById('goalBannerEmpty');
+  const nudge = document.getElementById('goalAiNudge');
   if (!goalData.goal) {
     banner.style.display = 'none';
     empty.style.display = '';
+    if (nudge) nudge.style.display = 'none';
     return;
   }
   empty.style.display = 'none';
   banner.style.display = '';
   const done = goalData.steps.filter(s => s.done).length;
   banner.textContent = `🎯 ${goalData.goal} · ${done}/${goalData.steps.length} · 🧘`;
+  if (nudge) nudge.style.display = isPro ? 'none' : '';
 }
 
 function renderGoalSteps() {
@@ -1654,9 +1677,29 @@ async function checkSubscriptionStatus() {
   if (isPro) renderStoredPersonalPlan();
 }
 
+// After the Stripe redirect: auth may still be restoring and the webhook may
+// still be landing in Firestore, so poll for a bit instead of checking once —
+// a single early check used to silently miss and leave the user thinking
+// nothing happened even though the payment (and the write) succeeded.
+async function pollForProAfterUpgrade() {
+  for (let i = 0; i < 8; i++) {
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    if (currentUser) await checkSubscriptionStatus();
+    if (isPro) {
+      logAnalyticsEvent('checkout_completed');
+      document.getElementById('upgradeSuccessDialog')?.classList.add('active');
+      return;
+    }
+  }
+}
+
 function updateUpgradeChipUI() {
   const btn = document.getElementById('upgradeAiBtn');
   const planEl = document.getElementById('personalPlan');
+  const donateLabel = document.getElementById('donateBtnLabel');
+  const nudge = document.getElementById('goalAiNudge');
+  if (donateLabel) donateLabel.textContent = isPro ? t('btnDonateProThanks') : t('btnDonate');
+  if (nudge) nudge.style.display = (isPro || !goalData.goal) ? 'none' : '';
   if (!btn) return;
   if (isPro) {
     btn.textContent = proBonusUntil
@@ -1682,13 +1725,26 @@ function removeAiCoachFromPool() {
 }
 
 async function handleUpgradeClick() {
+  // Signing in used to be a hard stop here (a toast, then the user has to go
+  // find the account tab themselves) — that's exactly the kind of extra step
+  // that loses people right before Checkout, so do it inline instead.
   if (!currentUser) {
-    showToast(t('toastSignInFirst'));
-    return;
+    if (!window.AppAuth?.signIn) {
+      showToast(t('toastSignInFirst'));
+      return;
+    }
+    try {
+      const result = await window.AppAuth.signIn();
+      currentUser = result.user;
+    } catch {
+      showToast(t('toastSignInError'));
+      return;
+    }
   }
   if (!window.AppAuth?.startCheckout) return;
   try {
     const url = await window.AppAuth.startCheckout(STRIPE_MONTHLY_PRICE_ID);
+    logAnalyticsEvent('checkout_started');
     window.location.href = url;
   } catch {
     showToast(t('toastCheckoutError'));
@@ -1704,7 +1760,9 @@ async function handleGeneratePlan() {
     renderPersonalPlan(plan);
     logAnalyticsEvent('personal_plan_generated');
   } catch (err) {
-    showToast(err?.code === 'functions/failed-precondition' ? t('toastPlanNeedsGoal') : t('toastPlanError'));
+    if (err?.code === 'functions/failed-precondition') showToast(t('toastPlanNeedsGoal'));
+    else if (err?.code === 'functions/resource-exhausted') showToast(t('toastPlanDailyLimit'));
+    else showToast(t('toastPlanError'));
   } finally {
     if (btn) btn.disabled = false;
   }

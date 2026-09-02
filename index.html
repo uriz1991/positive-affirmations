@@ -25,6 +25,7 @@
     <div class="streak-badge" id="streakBadge" style="display:none">&#128293; <span id="streakCount">1</span> <span data-i18n="streakDays">ימים ברצף</span></div>
     <div class="goal-banner" id="goalBanner" style="display:none"></div>
     <button class="goal-banner-empty" id="goalBannerEmpty" data-i18n="goalBannerEmpty">&#127919; הגדר יעד גדול</button>
+    <button class="goal-ai-nudge" id="goalAiNudge" style="display:none" data-i18n="goalAiNudge">&#10024; הפוך את זה לתוכנית AI אישית</button>
   </header>
 
   <!-- Category filter – rendered dynamically by JS -->
@@ -56,7 +57,7 @@
   <!-- Footer -->
   <footer class="footer">
     <div class="footer-links">
-      <a href="#" class="footer-link" id="donateBtn">&#9829; <span data-i18n="btnDonate">האפליקציה עזרה לך? תמכו בנו</span></a>
+      <a href="#" class="footer-link" id="donateBtn">&#9829; <span id="donateBtnLabel" data-i18n="btnDonate">אוהב את האפליקציה? שדרג ל-AI Coach אישי</span></a>
     </div>
     <p class="no-ads-badge" data-i18n="noAds">ללא פרסומות. לתמיד.</p>
     <p class="footer-credit">
@@ -141,6 +142,18 @@
       <div class="dialog-actions">
         <button class="btn-confirm" id="upgradeConfirmBtn" data-i18n="upgradeContinue">המשך לתשלום</button>
         <button class="btn-cancel" id="upgradeCancelBtn" data-i18n="upgradeCancel">לא עכשיו</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Shown once, right after a successful payment, so the moment converts into actual use -->
+  <div class="dialog-backdrop" id="upgradeSuccessDialog">
+    <div class="dialog upgrade-dialog">
+      <h3>&#127881; <span data-i18n="upgradeSuccessTitle">AI Coach הופעל!</span></h3>
+      <p data-i18n="upgradeSuccessDesc">התשלום התקבל בהצלחה. בואו ניצור את התוכנית האישית הראשונה שלך.</p>
+      <div class="dialog-actions">
+        <button class="btn-confirm" id="upgradeSuccessGenerateBtn" data-i18n="upgradeSuccessGenerate">צור תוכנית עכשיו</button>
+        <button class="btn-cancel" id="upgradeSuccessCloseBtn" data-i18n="upgradeSuccessLater">אחר כך</button>
       </div>
     </div>
   </div>
