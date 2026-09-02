@@ -97,6 +97,7 @@
   "goalPlaceholder": "למשל: אני בונה עסק מצליח ויוצא מהמשבר",
   "goalBannerEmpty": "🎯 הגדר יעד גדול",
   "todayStepPrefix": "הצעד של היום:",
+  "coachTodayLabel": "המאמן השבועי שלך 🎯",
   "goalSaved": "היעד נשמר! פורק ל-{n} צעדים 🎯",
   "goalStepsBase": [
     "תגדיר לעצמך בבירור איך זה נראה כשהיעד הזה כבר הושג",

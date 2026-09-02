@@ -32,6 +32,14 @@
   <!-- Category filter – rendered dynamically by JS -->
   <div class="categories" id="categories"></div>
 
+  <!-- Weekly AI Coach challenge/insight (Pro only, hidden entirely otherwise) -->
+  <div class="coach-today-card" id="coachTodayCard" style="display:none">
+    <p class="coach-today-label" data-i18n="coachTodayLabel">המאמן השבועי שלך 🎯</p>
+    <p class="coach-today-primary" id="coachTodayPrimary"></p>
+    <p class="coach-today-secondary" id="coachTodaySecondary" style="display:none"></p>
+    <p class="coach-today-affirmation" id="coachTodayAffirmation" style="display:none"></p>
+  </div>
+
   <!-- Today's step from the big goal -->
   <label class="today-step-card" id="todayStepCard" style="display:none">
     <input type="checkbox" id="todayStepCheckbox">

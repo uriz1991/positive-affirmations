@@ -509,6 +509,11 @@ function setupEventListeners() {
     logAnalyticsEvent('goal_ai_nudge_clicked');
     document.getElementById('upgradeDialog').classList.add('active');
   });
+  document.getElementById('coachTodayCard').addEventListener('click', () => {
+    logAnalyticsEvent('coach_today_card_clicked');
+    openSettings();
+    document.querySelector('.settings-tab[data-tab="goal"]')?.click();
+  });
   document.getElementById('goalInput').addEventListener('keypress', (e) => {
     if (e.key === 'Enter') handleSaveGoal();
   });
@@ -2020,6 +2025,7 @@ function updateUpgradeChipUI() {
     btn.disabled = false;
     if (planEl) planEl.style.display = 'none';
     removeAiCoachFromPool();
+    renderCoachTodayCard(null);
   }
 }
 
@@ -2093,7 +2099,53 @@ function renderStoredPersonalPlan() {
   window.AppAuth.loadUserData(currentUser.uid).then((data) => {
     if (data?.personalPlan) renderPersonalPlan(data.personalPlan);
     if (data?.weeklyCoach?.affirmation) mergeWeeklyCoachAffirmation(data.weeklyCoach.affirmation);
+    renderCoachTodayCard(data);
   }).catch(() => {});
+}
+
+// "Coach today" card: this week's challenge front and center on the home
+// screen, so the value is visible without opening Settings. weeklyCoach
+// (the proactive weekly job) is preferred; personalPlan is the fallback for
+// a Pro user who hasn't had a weekly run yet. No data at all -> hidden
+// entirely, never an empty state.
+function renderCoachTodayCard(data) {
+  const card = document.getElementById('coachTodayCard');
+  const primaryEl = document.getElementById('coachTodayPrimary');
+  const secondaryEl = document.getElementById('coachTodaySecondary');
+  const affEl = document.getElementById('coachTodayAffirmation');
+  if (!card || !primaryEl || !secondaryEl || !affEl) return;
+
+  if (!isPro) {
+    card.style.display = 'none';
+    return;
+  }
+
+  const wc = data?.weeklyCoach;
+  const pp = data?.personalPlan;
+  let primary = null;
+  let secondary = null;
+  let affirmation = null;
+
+  if (wc?.challenge || wc?.insight) {
+    primary = wc.challenge || wc.insight;
+    secondary = (wc.challenge && wc.insight) ? wc.insight : null;
+    affirmation = wc.affirmation || null;
+  } else if (pp?.insights?.length) {
+    primary = pp.insights[0];
+    affirmation = pp.affirmations?.[0] || null;
+  }
+
+  if (!primary) {
+    card.style.display = 'none';
+    return;
+  }
+
+  primaryEl.textContent = primary;
+  secondaryEl.textContent = secondary || '';
+  secondaryEl.style.display = secondary ? '' : 'none';
+  affEl.textContent = affirmation ? '✨ ' + affirmation : '';
+  affEl.style.display = affirmation ? '' : 'none';
+  card.style.display = '';
 }
 
 // Re-applies the last rendered plan after a language switch, which reloads

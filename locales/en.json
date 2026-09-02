@@ -97,6 +97,7 @@
   "goalPlaceholder": "e.g. I'm building a successful business and coming out of this rough patch",
   "goalBannerEmpty": "🎯 Set a big goal",
   "todayStepPrefix": "Today's step:",
+  "coachTodayLabel": "Your weekly coach 🎯",
   "goalSaved": "Goal saved! Broken into {n} steps 🎯",
   "goalStepsBase": [
     "Get crystal clear on what it looks like when this goal is already achieved",
