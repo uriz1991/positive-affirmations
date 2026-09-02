@@ -299,13 +299,20 @@ function setupEventListeners() {
     showRandomAffirmation();
   });
 
-  // Camera button
+  // Camera button — the confirmation dialog also teaches "look at yourself,
+  // say it aloud, nothing is recorded", so once someone has seen it there's
+  // no need to interrupt them again before every camera open.
   document.getElementById('cameraBtn').addEventListener('click', () => {
-    document.getElementById('cameraDialog').classList.add('active');
+    if (localStorage.getItem('camera-coach-seen')) {
+      openCamera();
+    } else {
+      document.getElementById('cameraDialog').classList.add('active');
+    }
   });
 
   // Camera confirm
   document.getElementById('cameraConfirm').addEventListener('click', () => {
+    localStorage.setItem('camera-coach-seen', '1');
     document.getElementById('cameraDialog').classList.remove('active');
     openCamera();
   });
@@ -323,6 +330,18 @@ function setupEventListeners() {
     showRandomAffirmation();
     document.getElementById('cameraAffirmation').textContent = currentAffirmation.text;
   });
+
+  // Save the current camera affirmation straight to the belief journal
+  document.getElementById('cameraSaveJournalBtn').addEventListener('click', () => {
+    const text = document.getElementById('cameraAffirmation').textContent;
+    if (saveJournalText(text)) {
+      showToast(t('journalAdded'));
+      logAnalyticsEvent('journal_entry_added_from_camera');
+    }
+  });
+
+  // Countdown skip
+  document.getElementById('cameraCountdownSkip').addEventListener('click', stopCameraCountdown);
 
   // Camera double-tap to favorite (bound once — openCamera used to re-bind this on every open)
   let lastCameraTap = 0;
@@ -505,9 +524,38 @@ async function openCamera() {
     document.getElementById('cameraSection').classList.add('active');
     const cameraAff = document.getElementById('cameraAffirmation');
     cameraAff.textContent = currentAffirmation.text;
+    startCameraCountdown();
   } catch (err) {
     alert(t('cameraError'));
   }
+}
+
+// A brief countdown gives people a moment to settle before they speak —
+// purely a pacing ritual, skippable any time.
+let cameraCountdownInterval = null;
+
+function startCameraCountdown() {
+  const overlay = document.getElementById('cameraCountdown');
+  const numberEl = document.getElementById('cameraCountdownNumber');
+  if (!overlay || !numberEl) return;
+  let secondsLeft = 10;
+  numberEl.textContent = secondsLeft;
+  overlay.classList.add('active');
+  clearInterval(cameraCountdownInterval);
+  cameraCountdownInterval = setInterval(() => {
+    secondsLeft -= 1;
+    if (secondsLeft <= 0) {
+      stopCameraCountdown();
+      return;
+    }
+    numberEl.textContent = secondsLeft;
+  }, 1000);
+}
+
+function stopCameraCountdown() {
+  clearInterval(cameraCountdownInterval);
+  cameraCountdownInterval = null;
+  document.getElementById('cameraCountdown')?.classList.remove('active');
 }
 
 function showCameraHeart(el) {
@@ -529,6 +577,7 @@ function closeCamera() {
     cameraStream = null;
   }
   document.getElementById('cameraSection').classList.remove('active');
+  stopCameraCountdown();
 }
 
 // ===== Share =====
@@ -1504,20 +1553,23 @@ function getJournalEntries() {
   }
 }
 
-function addJournalEntry() {
-  const input = document.getElementById('journalInput');
-  const text = input.value.trim();
-  if (!text || text.length > 200) return;
-
+function saveJournalText(text) {
+  text = (text || '').trim();
+  if (!text || text.length > 200) return false;
   const entries = getJournalEntries();
   entries.unshift(text);
   localStorage.setItem('belief-journal', JSON.stringify(entries.slice(0, 200)));
-
-  input.value = '';
   renderJournalList();
+  pushToCloud();
+  return true;
+}
+
+function addJournalEntry() {
+  const input = document.getElementById('journalInput');
+  if (!saveJournalText(input.value)) return;
+  input.value = '';
   showToast(t('journalAdded'));
   logAnalyticsEvent('journal_entry_added');
-  pushToCloud();
 }
 
 function removeJournalEntry(index) {

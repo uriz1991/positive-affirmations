@@ -445,6 +445,54 @@ body {
   background: rgba(255, 255, 255, 0.25);
 }
 
+.camera-overlay-actions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.camera-overlay-actions .camera-next-btn {
+  margin-top: 0;
+  font-size: 0.8rem;
+  padding: 9px 16px;
+}
+
+.camera-countdown {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 5;
+  text-align: center;
+  display: none;
+}
+
+.camera-countdown.active {
+  display: block;
+}
+
+.camera-countdown-number {
+  font-size: 4rem;
+  font-weight: 700;
+  color: white;
+  text-shadow: 0 2px 16px rgba(0, 0, 0, 0.8);
+  margin: 0;
+}
+
+.camera-countdown-skip {
+  margin-top: 8px;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: white;
+  padding: 6px 18px;
+  border-radius: 10px;
+  font-family: inherit;
+  font-size: 0.75rem;
+  cursor: pointer;
+  backdrop-filter: blur(10px);
+}
+
 .camera-close {
   position: absolute;
   top: 16px;

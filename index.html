@@ -98,9 +98,16 @@
   <div class="camera-section" id="cameraSection">
     <button class="camera-close" id="cameraClose">&#10005;</button>
     <video class="camera-video" id="cameraVideo" autoplay playsinline></video>
+    <div class="camera-countdown" id="cameraCountdown">
+      <p class="camera-countdown-number" id="cameraCountdownNumber">10</p>
+      <button class="camera-countdown-skip" id="cameraCountdownSkip" data-i18n="cameraCountdownSkip">דלג</button>
+    </div>
     <div class="camera-overlay">
       <p class="affirmation-text" id="cameraAffirmation"></p>
-      <button class="camera-next-btn" id="cameraNextBtn">&#10024; <span data-i18n="cameraNext">משפט הבא</span></button>
+      <div class="camera-overlay-actions">
+        <button class="camera-next-btn" id="cameraNextBtn">&#10024; <span data-i18n="cameraNext">משפט הבא</span></button>
+        <button class="camera-next-btn" id="cameraSaveJournalBtn">&#128172; <span data-i18n="cameraSaveJournal">שמור רגע ליומן</span></button>
+      </div>
     </div>
   </div>
 
