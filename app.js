@@ -1492,6 +1492,26 @@ function renderGoalBanner() {
   const done = goalData.steps.filter(s => s.done).length;
   banner.textContent = `🎯 ${goalData.goal} · ${done}/${goalData.steps.length} · 🧘`;
   if (nudge) nudge.style.display = isPro ? 'none' : '';
+  renderTodayStep();
+}
+
+// One incomplete goal step, front and center on the home screen — goal
+// progress shouldn't require a trip into Settings to move forward.
+function renderTodayStep() {
+  const card = document.getElementById('todayStepCard');
+  const textEl = document.getElementById('todayStepText');
+  const checkbox = document.getElementById('todayStepCheckbox');
+  if (!card || !textEl || !checkbox) return;
+
+  const idx = goalData.steps.findIndex(s => !s.done);
+  if (!goalData.goal || idx === -1) {
+    card.style.display = 'none';
+    return;
+  }
+  card.style.display = '';
+  textEl.textContent = goalData.steps[idx].text;
+  checkbox.checked = false;
+  checkbox.onchange = () => toggleGoalStep(idx);
 }
 
 function renderGoalSteps() {

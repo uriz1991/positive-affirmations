@@ -93,6 +93,7 @@
   "goalDesc": "Write one big, clear goal. The app will break it into steps and remind you of it every day.",
   "goalPlaceholder": "e.g. I'm building a successful business and coming out of this rough patch",
   "goalBannerEmpty": "🎯 Set a big goal",
+  "todayStepPrefix": "Today's step:",
   "goalSaved": "Goal saved! Broken into {n} steps 🎯",
   "goalStepsBase": [
     "Get crystal clear on what it looks like when this goal is already achieved",

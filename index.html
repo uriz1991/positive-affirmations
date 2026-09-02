@@ -30,6 +30,13 @@
   <!-- Category filter – rendered dynamically by JS -->
   <div class="categories" id="categories"></div>
 
+  <!-- Today's step from the big goal -->
+  <label class="today-step-card" id="todayStepCard" style="display:none">
+    <input type="checkbox" id="todayStepCheckbox">
+    <span class="today-step-prefix" data-i18n="todayStepPrefix">הצעד של היום:</span>
+    <span id="todayStepText"></span>
+  </label>
+
   <!-- Main affirmation -->
   <main class="affirmation-container">
     <div class="category-badge" id="currentCategory"></div>

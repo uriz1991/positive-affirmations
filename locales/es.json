@@ -93,6 +93,7 @@
   "goalDesc": "Escribe una meta grande y clara. La app la dividirá en pasos y te la recordará cada día.",
   "goalPlaceholder": "ej.: Estoy construyendo un negocio exitoso y saliendo de este mal momento",
   "goalBannerEmpty": "🎯 Define una gran meta",
+  "todayStepPrefix": "Paso de hoy:",
   "goalSaved": "¡Meta guardada! Dividida en {n} pasos 🎯",
   "goalStepsBase": [
     "Define con claridad cómo se ve cuando ya has logrado esta meta",

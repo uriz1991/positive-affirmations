@@ -93,6 +93,7 @@
   "goalDesc": "Écrivez un objectif grand et clair. L'app le décomposera en étapes et vous le rappellera chaque jour.",
   "goalPlaceholder": "ex. : Je construis une entreprise prospère et je sors de cette période difficile",
   "goalBannerEmpty": "🎯 Définir un grand objectif",
+  "todayStepPrefix": "Étape du jour :",
   "goalSaved": "Objectif enregistré ! Décomposé en {n} étapes 🎯",
   "goalStepsBase": [
     "Définissez clairement à quoi ressemble l'atteinte de cet objectif",

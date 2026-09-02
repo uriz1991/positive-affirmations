@@ -90,6 +90,37 @@ body {
   display: none;
 }
 
+.today-step-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 12px 6px;
+  padding: 8px 12px;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  font-size: 0.75rem;
+  color: var(--text-primary);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.today-step-card input[type="checkbox"] {
+  flex-shrink: 0;
+}
+
+.today-step-prefix {
+  color: var(--text-secondary);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.today-step-card #todayStepText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .category-chip {
   background: var(--card-bg);
   border: 1px solid var(--card-border);
