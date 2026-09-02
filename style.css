@@ -884,6 +884,13 @@ body {
   color: var(--accent-light);
   font-weight: 600;
   text-align: center;
+  margin-bottom: 4px;
+}
+
+.upgrade-cancel-note {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  text-align: center;
   margin-bottom: 16px;
 }
 
