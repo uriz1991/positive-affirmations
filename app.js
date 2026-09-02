@@ -1644,7 +1644,9 @@ async function checkSubscriptionStatus() {
     const status = await window.AppAuth.loadSubscriptionStatus(currentUser.uid);
     isPro = status.isPro;
     proBonusUntil = status.bonusUntil;
-  } catch {
+  } catch (err) {
+    console.error('checkSubscriptionStatus failed:', err);
+    logAnalyticsEvent('subscription_status_check_failed', { code: err?.code || 'unknown' });
     isPro = false;
     proBonusUntil = null;
   }
