@@ -266,10 +266,15 @@ function maybeShowOnboarding() {
 }
 
 function closeOnboarding() {
-  // Any close (X, backdrop, or start button) means "seen it" — the checkbox
-  // no longer gates this, it would otherwise show again on every reload.
+  // Any close (backdrop or a step's button) means "seen it" — it would
+  // otherwise show again on every reload.
   localStorage.setItem('onboarding-hidden', '1');
   document.getElementById('onboardingBackdrop').classList.remove('active');
+}
+
+function showOnboardingStep(n) {
+  document.getElementById('onboardingStep1').classList.toggle('active', n === 1);
+  document.getElementById('onboardingStep2').classList.toggle('active', n === 2);
 }
 
 // ===== Event Listeners =====
@@ -279,12 +284,29 @@ function setupEventListeners() {
 
   // Help button
   document.getElementById('helpBtn').addEventListener('click', () => {
-    document.getElementById('dontShowOnboarding').checked = false;
+    showOnboardingStep(1);
     document.getElementById('onboardingBackdrop').classList.add('active');
   });
 
-  // Onboarding close
-  document.getElementById('onboardingClose').addEventListener('click', closeOnboarding);
+  // Onboarding — step 1 (goal, optional)
+  document.getElementById('onboardingNext1').addEventListener('click', () => {
+    const goalText = document.getElementById('onboardingGoalInput').value.trim();
+    if (goalText) {
+      document.getElementById('goalInput').value = goalText;
+      handleSaveGoal();
+    }
+    showOnboardingStep(2);
+  });
+  document.getElementById('onboardingSkip1').addEventListener('click', () => showOnboardingStep(2));
+
+  // Onboarding — step 2 (reminder time, optional)
+  document.getElementById('onboardingClose').addEventListener('click', () => {
+    const time = document.getElementById('onboardingReminderInput').value;
+    if (time) updateReminder('default-morning', { time, enabled: true });
+    closeOnboarding();
+  });
+  document.getElementById('onboardingSkip2').addEventListener('click', closeOnboarding);
+
   document.getElementById('onboardingBackdrop').addEventListener('click', (e) => {
     if (e.target === document.getElementById('onboardingBackdrop')) closeOnboarding();
   });

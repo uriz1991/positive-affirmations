@@ -1286,53 +1286,52 @@ body {
   color: var(--text-secondary);
   line-height: 1.4;
 }
-.onboarding-features {
-  list-style: none;
-  padding: 0;
-  margin: 0 0 22px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+.onboarding-step {
+  display: none;
 }
-.onboarding-features li {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  font-size: 0.875rem;
+.onboarding-step.active {
+  display: block;
+}
+.onboarding-step-label {
+  font-size: 0.7rem;
   color: var(--text-secondary);
-  line-height: 1.45;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+.onboarding-step h3 {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 14px;
+}
+.onboarding-step-input {
+  width: 100%;
   background: var(--card-bg);
   border: 1px solid var(--card-border);
   border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 0.9rem;
+  font-family: inherit;
+  color: var(--text-primary);
+  margin-bottom: 18px;
+}
+.onboarding-step-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.onboarding-skip-btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  font-family: inherit;
+  cursor: pointer;
   padding: 10px 12px;
 }
-.feat-icon {
-  font-size: 1.1rem;
-  flex-shrink: 0;
-  margin-top: 1px;
-}
-.onboarding-footer {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  align-items: center;
-}
-.onboarding-dont-show {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.8rem;
-  color: var(--text-secondary);
-  cursor: pointer;
-}
-.onboarding-dont-show input[type="checkbox"] {
-  width: 16px;
-  height: 16px;
-  cursor: pointer;
-  accent-color: var(--accent);
-}
 .onboarding-start-btn {
-  width: 100%;
+  flex: 1;
   font-size: 1rem;
 }
 

@@ -84,19 +84,24 @@
         <h2 data-i18n="onboardingTitle">ברוכים הבאים לאמירות חיוביות</h2>
         <p class="onboarding-subtitle" data-i18n="onboardingSubtitle">האפליקציה שתעזור לך להאמין בעצמך מדי יום</p>
       </div>
-      <ul class="onboarding-features">
-        <li><span class="feat-icon">📂</span><span data-i18n="onboardingFeature1">קטגוריות – בחר את התחום שמדבר אליך: ביטחון, אהבה, בריאות ועוד</span></li>
-        <li><span class="feat-icon">♥</span><span data-i18n="onboardingFeature2">מועדפים – לחץ על הלב כדי לשמור משפטים מיוחדים</span></li>
-        <li><span class="feat-icon">📷</span><span data-i18n="onboardingFeature3">מצב מצלמה – הסתכל על עצמך ואמור את המשפט. לחיצה כפולה על המשפט שומרת אותו למועדפים</span></li>
-        <li><span class="feat-icon">✏️</span><span data-i18n="onboardingFeature4">משפטים אישיים – הוסף משפטים משלך בהגדרות</span></li>
-        <li><span class="feat-icon">🔔</span><span data-i18n="onboardingFeature5">תזכורות – קבל השראה שלוש פעמים ביום</span></li>
-      </ul>
-      <div class="onboarding-footer">
-        <label class="onboarding-dont-show">
-          <input type="checkbox" id="dontShowOnboarding">
-          <span data-i18n="onboardingDontShow">אל תראה לי שוב</span>
-        </label>
-        <button class="btn btn-primary onboarding-start-btn" id="onboardingClose" data-i18n="onboardingStart">בואו נתחיל! ✨</button>
+      <div class="onboarding-step active" id="onboardingStep1">
+        <p class="onboarding-step-label" data-i18n="onboardingStepLabel">שלב 1 מתוך 2 · אופציונלי</p>
+        <h3 data-i18n="onboardingStep1Title">מה היעד הגדול שלך?</h3>
+        <input type="text" id="onboardingGoalInput" class="onboarding-step-input" data-i18n-placeholder="goalPlaceholder" placeholder="למשל: אני בונה עסק מצליח ויוצא מהמשבר" maxlength="200">
+        <div class="onboarding-step-actions">
+          <button class="onboarding-skip-btn" id="onboardingSkip1" data-i18n="onboardingSkip">דלג</button>
+          <button class="btn btn-primary onboarding-start-btn" id="onboardingNext1" data-i18n="onboardingNext">הבא</button>
+        </div>
+      </div>
+
+      <div class="onboarding-step" id="onboardingStep2">
+        <p class="onboarding-step-label" data-i18n="onboardingStepLabel2">שלב 2 מתוך 2 · אופציונלי</p>
+        <h3 data-i18n="onboardingStep2Title">מתי תרצה תזכורת יומית?</h3>
+        <input type="time" id="onboardingReminderInput" class="onboarding-step-input" value="08:00">
+        <div class="onboarding-step-actions">
+          <button class="onboarding-skip-btn" id="onboardingSkip2" data-i18n="onboardingSkip">דלג</button>
+          <button class="btn btn-primary onboarding-start-btn" id="onboardingClose" data-i18n="onboardingStart">בואו נתחיל! ✨</button>
+        </div>
       </div>
     </div>
   </div>
