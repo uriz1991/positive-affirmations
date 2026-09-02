@@ -146,6 +146,8 @@
   "toastPlanDailyLimit": "Vous avez atteint la limite quotidienne de génération — réessayez demain",
   "toastPortalError": "Impossible d'ouvrir la gestion de l'abonnement, réessayez",
   "inviteCount": "🎉 Vous avez invité {n} amis jusqu'à présent !",
+  "nudgeCreatePlan": "💡 Vous n'avez pas encore créé de plan AI Coach personnel — c'est exactement pour ça que vous payez",
+  "nudgeTryCamera": "📷 Vous n'avez pas essayé le mode caméra récemment — regardez-vous et dites l'affirmation",
   "journalTitle": "Journal de croyance",
   "journalDesc": "Quand aujourd'hui avez-vous senti, ne serait-ce qu'un instant, que c'est possible ? Écrivez une phrase.",
   "journalPlaceholder": "Écrivez un moment de croyance...",

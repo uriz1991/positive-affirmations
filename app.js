@@ -547,6 +547,7 @@ async function openCamera() {
     const cameraAff = document.getElementById('cameraAffirmation');
     cameraAff.textContent = currentAffirmation.text;
     startCameraCountdown();
+    localStorage.setItem('camera-last-opened', Date.now().toString());
   } catch (err) {
     alert(t('cameraError'));
   }
@@ -1915,7 +1916,46 @@ async function checkSubscriptionStatus() {
     proBonusUntil = null;
   }
   updateUpgradeChipUI();
-  if (isPro) renderStoredPersonalPlan();
+  if (isPro) {
+    renderStoredPersonalPlan();
+    maybeShowHabitNudge();
+  }
+}
+
+// Gentle activation nudges for paying users who aren't getting the value yet
+// — never more than one a day, and each does its own fresh check rather than
+// trusting in-memory state that may not have loaded yet.
+async function maybeShowHabitNudge() {
+  if (!isPro || !currentUser) return;
+  const today = new Date().toDateString();
+  if (localStorage.getItem('last-nudge-date') === today) return;
+
+  if (!localStorage.getItem('pro-since')) {
+    localStorage.setItem('pro-since', Date.now().toString());
+  }
+  const hoursSincePro = (Date.now() - Number(localStorage.getItem('pro-since'))) / 3600000;
+
+  if (hoursSincePro >= 48) {
+    let hasPlan = !!lastPersonalPlan?.affirmations?.length;
+    if (!hasPlan && window.AppAuth?.loadUserData) {
+      try {
+        const data = await window.AppAuth.loadUserData(currentUser.uid);
+        hasPlan = !!data?.personalPlan?.affirmations?.length;
+      } catch {}
+    }
+    if (!hasPlan) {
+      showToast(t('nudgeCreatePlan'));
+      localStorage.setItem('last-nudge-date', today);
+      return;
+    }
+  }
+
+  const lastCameraOpen = Number(localStorage.getItem('camera-last-opened') || 0);
+  const daysSinceCamera = lastCameraOpen ? (Date.now() - lastCameraOpen) / 86400000 : Infinity;
+  if (daysSinceCamera >= 7) {
+    showToast(t('nudgeTryCamera'));
+    localStorage.setItem('last-nudge-date', today);
+  }
 }
 
 // After the Stripe redirect: auth may still be restoring and the webhook may
