@@ -110,6 +110,11 @@ function updateLangButtons() {
   });
 }
 
+function updateOfflineIndicator() {
+  const el = document.getElementById('offlineIndicator');
+  if (el) el.style.display = navigator.onLine ? 'none' : '';
+}
+
 // ===== Initialize =====
 document.addEventListener('DOMContentLoaded', async () => {
   setupEventListeners();
@@ -118,6 +123,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   loadTheme();
   loadFontSize();
   applyHomeMode();
+  updateOfflineIndicator();
+  window.addEventListener('online', updateOfflineIndicator);
+  window.addEventListener('offline', updateOfflineIndicator);
   updateStreak();
   migrateOldReminders();
   loadPersonalAffirmations();

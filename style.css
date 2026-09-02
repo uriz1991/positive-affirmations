@@ -54,6 +54,16 @@ body {
 [dir="ltr"] .settings-panel.active { left: 0; }
 
 /* Header */
+.offline-indicator {
+  flex-shrink: 0;
+  text-align: center;
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  background: var(--card-bg);
+  border-bottom: 1px solid var(--card-border);
+  padding: 5px 10px;
+}
+
 .header {
   padding: 10px 16px 6px;
   text-align: center;
