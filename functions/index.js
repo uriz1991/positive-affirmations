@@ -475,3 +475,96 @@ exports.generatePersonalPlan = onCall({ secrets: [geminiApiKey] }, async (reques
 
   return parsed;
 });
+
+// ===== Weekly proactive AI coach (Pro only) =====
+// The point of paying isn't a one-shot content generator — it's not having
+// to go re-explain your situation to ChatGPT every week. This runs itself:
+// reads what's already in the app (goal, steps, recent journal entries),
+// writes one short weekly update, pushes it, and folds the new affirmation
+// into the normal rotation. No goal and no journal means nothing to work
+// with, so that user is skipped rather than getting a generic message.
+exports.sendWeeklyCoachInsight = onSchedule({
+  schedule: '0 8 * * 0',
+  timeZone: 'Asia/Jerusalem',
+  timeoutSeconds: 300,
+  secrets: [geminiApiKey]
+}, async () => {
+  const usersSnap = await db.collection('users').get();
+  const genAI = new GoogleGenerativeAI(secretValue(geminiApiKey));
+  const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+
+  await Promise.all(usersSnap.docs.map(async (userDoc) => {
+    const uid = userDoc.id;
+    try {
+      const data = userDoc.data();
+      const goal = data.goalData?.goal || '';
+      const journal = Array.isArray(data.journal) ? data.journal : [];
+      if (!goal && !journal.length) return;
+
+      const subSnap = await db.doc('subscriptions/' + uid).get();
+      if (!hasActiveAccess(subSnap.data())) return;
+
+      const steps = data.goalData?.steps || [];
+      const completedSteps = steps.filter((s) => s.done).map((s) => s.text);
+      const pendingSteps = steps.filter((s) => !s.done).map((s) => s.text);
+      // Journal entries are stored newest-first with no timestamps, so "this
+      // week" is approximated as the most recent handful rather than a real
+      // date filter.
+      const recentJournal = journal.slice(0, 7);
+
+      const prompt = [
+        goal ? `היעד של המשתמש: "${goal}"` : '',
+        completedSteps.length ? `צעדים שכבר השלים: ${completedSteps.join('; ')}` : '',
+        pendingSteps.length ? `צעדים שנותרו לו: ${pendingSteps.join('; ')}` : '',
+        recentJournal.length ? `רגעי אמונה שרשם ביומן לאחרונה: ${recentJournal.join('; ')}` : '',
+        '',
+        'כתוב עבורו עדכון שבועי קצר, אישי וממוקד:',
+        '1. תובנה אחת (2-3 משפטים) על ההתקדמות שלו, מבוססת רק על מה שלמעלה — לא כללית.',
+        '2. אתגר או צעד קונקרטי אחד לשבוע הקרוב.',
+        '3. משפט אמירה חיובי אחד וחדש, ספציפי למצב שלו, בניסוח ניטרלי מגדרית.',
+        '',
+        'החזר JSON תקני בלבד, במבנה: {"insight": "...", "challenge": "...", "affirmation": "..."}'
+      ].filter(Boolean).join('\n');
+
+      let result;
+      try {
+        result = await model.generateContent(prompt);
+      } catch (err) {
+        logger.error('Weekly coach Gemini call failed', { uid, message: err.message });
+        return;
+      }
+
+      let parsed;
+      try {
+        const raw = result.response.text().replace(/```json|```/g, '').trim();
+        parsed = JSON.parse(raw);
+      } catch (err) {
+        logger.error('Weekly coach parse failed', { uid, message: err.message });
+        return;
+      }
+
+      await db.doc('users/' + uid).set({
+        weeklyCoach: {
+          insight: parsed.insight || '',
+          challenge: parsed.challenge || '',
+          affirmation: parsed.affirmation || '',
+          generatedAt: FieldValue.serverTimestamp()
+        }
+      }, { merge: true });
+
+      const tokens = Array.isArray(data.fcmTokens) ? data.fcmTokens : [];
+      if (tokens.length && (parsed.challenge || parsed.insight)) {
+        await messaging.sendEachForMulticast({
+          tokens,
+          notification: {
+            title: 'המאמן השבועי שלך 🎯',
+            body: parsed.challenge || parsed.insight
+          },
+          webpush: { fcmOptions: { link: APP_URL } }
+        }).catch(() => null);
+      }
+    } catch (err) {
+      logger.error('Weekly coach failed for user', { uid, message: err.message });
+    }
+  }));
+});

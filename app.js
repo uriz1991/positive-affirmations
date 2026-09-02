@@ -2025,6 +2025,7 @@ function updateUpgradeChipUI() {
 
 function removeAiCoachFromPool() {
   lastPersonalPlan = null;
+  lastWeeklyCoachAffirmation = null;
   if (!affirmationsData) return;
   affirmationsData.affirmations = affirmationsData.affirmations.filter(a => a.category !== 'ai-coach');
   delete affirmationsData.categories['ai-coach'];
@@ -2091,14 +2092,18 @@ function renderStoredPersonalPlan() {
   if (!window.AppAuth?.loadUserData || !currentUser) return;
   window.AppAuth.loadUserData(currentUser.uid).then((data) => {
     if (data?.personalPlan) renderPersonalPlan(data.personalPlan);
+    if (data?.weeklyCoach?.affirmation) mergeWeeklyCoachAffirmation(data.weeklyCoach.affirmation);
   }).catch(() => {});
 }
 
 // Re-applies the last rendered plan after a language switch, which reloads
 // affirmationsData from scratch and would otherwise silently drop the paid
 // AI Coach content out of the rotation until the next sign-in.
+// Order matters: the personal-plan merge below replaces the whole 'ai-coach'
+// category, so it must run before the weekly-coach merge, which only adds.
 function reapplyPersonalPlanIfAny() {
   if (isPro && lastPersonalPlan) mergePersonalPlanIntoPool(lastPersonalPlan);
+  if (isPro && lastWeeklyCoachAffirmation) mergeWeeklyCoachAffirmation(lastWeeklyCoachAffirmation);
 }
 
 function renderPersonalPlan(plan) {
@@ -2139,6 +2144,25 @@ function mergePersonalPlanIntoPool(plan) {
   affirmationsData.affirmations.push(
     ...plan.affirmations.map(text => ({ text, category: 'ai-coach' }))
   );
+  if (!affirmationsData.categories['ai-coach']) {
+    affirmationsData.categories['ai-coach'] = t('categoryAiCoach');
+  }
+  renderCategoryChips();
+  updateCategoryChips();
+}
+
+// The weekly proactive coach adds one fresh affirmation on top of whatever
+// mergePersonalPlanIntoPool put there — appends rather than replacing, since
+// that function already owns clearing/rebuilding the 'ai-coach' category.
+let lastWeeklyCoachAffirmation = null;
+
+function mergeWeeklyCoachAffirmation(text) {
+  if (!affirmationsData || !text) return;
+  lastWeeklyCoachAffirmation = text;
+  const alreadyThere = affirmationsData.affirmations.some(a => a.category === 'ai-coach' && a.text === text);
+  if (!alreadyThere) {
+    affirmationsData.affirmations.push({ text, category: 'ai-coach' });
+  }
   if (!affirmationsData.categories['ai-coach']) {
     affirmationsData.categories['ai-coach'] = t('categoryAiCoach');
   }
