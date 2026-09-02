@@ -267,7 +267,7 @@ body {
 .settings-btn {
   position: absolute;
   top: 12px;
-  left: 12px;
+  right: 12px;
   background: none;
   border: none;
   color: var(--text-secondary);
@@ -279,7 +279,7 @@ body {
 .help-btn {
   position: absolute;
   top: 12px;
-  right: 48px;
+  right: 44px;
   background: none;
   border: none;
   color: var(--text-secondary);
@@ -299,18 +299,6 @@ body {
   transition: opacity 0.2s;
 }
 .help-btn:hover { opacity: 1; }
-
-.theme-btn {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  background: none;
-  border: none;
-  color: var(--text-secondary);
-  font-size: 1.2rem;
-  cursor: pointer;
-  padding: 6px;
-}
 
 .streak-badge {
   font-size: 0.7rem;

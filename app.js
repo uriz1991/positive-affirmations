@@ -380,7 +380,8 @@ function setupEventListeners() {
   document.getElementById('checkUpdateBtn').addEventListener('click', checkForUpdate);
 
   // Theme toggle
-  document.getElementById('themeBtn').addEventListener('click', toggleTheme);
+  document.getElementById('themeLightBtn').addEventListener('click', () => setTheme('light'));
+  document.getElementById('themeDarkBtn').addEventListener('click', () => setTheme('dark'));
 
   // Favorite button
   document.getElementById('favoriteBtn').addEventListener('click', toggleFavorite);
@@ -1163,18 +1164,19 @@ function syncSettingsToSW() {
 // ===== Theme =====
 function loadTheme() {
   const theme = localStorage.getItem('theme') || 'dark';
-  if (theme === 'light') {
-    document.body.classList.add('light-mode');
-    document.getElementById('themeBtn').textContent = '☽';
-  } else {
-    document.getElementById('themeBtn').textContent = '☀';
-  }
+  document.body.classList.toggle('light-mode', theme === 'light');
+  updateThemeButtonsUI(theme);
 }
 
-function toggleTheme() {
-  const isLight = document.body.classList.toggle('light-mode');
-  localStorage.setItem('theme', isLight ? 'light' : 'dark');
-  document.getElementById('themeBtn').textContent = isLight ? '☽' : '☀';
+function setTheme(theme) {
+  document.body.classList.toggle('light-mode', theme === 'light');
+  localStorage.setItem('theme', theme);
+  updateThemeButtonsUI(theme);
+}
+
+function updateThemeButtonsUI(theme) {
+  document.getElementById('themeLightBtn')?.classList.toggle('active', theme === 'light');
+  document.getElementById('themeDarkBtn')?.classList.toggle('active', theme === 'dark');
 }
 
 // ===== Streak =====
