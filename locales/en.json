@@ -74,6 +74,7 @@
   "versionLabel": "Version:",
   "lastUpdateLabel": "Last update:",
   "languageTitle": "Language",
+  "languageExperimental": "experimental",
   "shareTitle": "Positive Affirmations",
   "shareText": "Daily positive affirmations",
   "toastCopied": "Copied! You can paste and share",
