@@ -117,6 +117,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   await loadLanguage(savedLang);
   loadTheme();
   loadFontSize();
+  applyHomeMode();
   updateStreak();
   migrateOldReminders();
   loadPersonalAffirmations();
@@ -382,6 +383,12 @@ function setupEventListeners() {
   // Theme toggle
   document.getElementById('themeLightBtn').addEventListener('click', () => setTheme('light'));
   document.getElementById('themeDarkBtn').addEventListener('click', () => setTheme('dark'));
+  document.getElementById('homeModeMinimalBtn').addEventListener('click', () => setHomeMode('minimal'));
+  document.getElementById('homeModeFullBtn').addEventListener('click', () => setHomeMode('full'));
+  document.getElementById('moreActionsBtn').addEventListener('click', () => {
+    chromeExpandedThisSession = !chromeExpandedThisSession;
+    updateChromeVisibility();
+  });
 
   // Favorite button
   document.getElementById('favoriteBtn').addEventListener('click', toggleFavorite);
@@ -1177,6 +1184,47 @@ function setTheme(theme) {
 function updateThemeButtonsUI(theme) {
   document.getElementById('themeLightBtn')?.classList.toggle('active', theme === 'light');
   document.getElementById('themeDarkBtn')?.classList.toggle('active', theme === 'dark');
+}
+
+// ===== Home screen mode (minimal / full) =====
+// True first-time visitors (onboarding-hidden not set yet) default to the
+// calmer minimal view; anyone who already used the app before this feature
+// shipped keeps the full view they're used to, unless they change it.
+let chromeExpandedThisSession = false;
+
+function getHomeMode() {
+  let mode = localStorage.getItem('home-mode');
+  if (mode !== 'minimal' && mode !== 'full') {
+    mode = localStorage.getItem('onboarding-hidden') ? 'full' : 'minimal';
+    localStorage.setItem('home-mode', mode);
+  }
+  return mode;
+}
+
+function setHomeMode(mode) {
+  localStorage.setItem('home-mode', mode);
+  chromeExpandedThisSession = false;
+  applyHomeMode();
+}
+
+function applyHomeMode() {
+  const mode = getHomeMode();
+  document.getElementById('homeModeMinimalBtn')?.classList.toggle('active', mode === 'minimal');
+  document.getElementById('homeModeFullBtn')?.classList.toggle('active', mode === 'full');
+  updateChromeVisibility();
+}
+
+function updateChromeVisibility() {
+  const minimal = getHomeMode() === 'minimal';
+  const show = !minimal || chromeExpandedThisSession;
+  document.querySelectorAll('.chrome-collapsible').forEach((el) => {
+    el.style.display = show ? '' : 'none';
+  });
+  const moreBtn = document.getElementById('moreActionsBtn');
+  if (moreBtn) {
+    moreBtn.style.display = minimal ? '' : 'none';
+    moreBtn.textContent = show ? '⋯ ' + t('lessActions') : '⋯ ' + t('moreActions');
+  }
 }
 
 // ===== Streak =====

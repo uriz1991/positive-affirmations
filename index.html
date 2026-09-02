@@ -47,18 +47,19 @@
       <span class="btn-icon">&#128248;</span>
       <span data-i18n="btnCamera">הסתכל על עצמך ותגיד את זה</span>
     </button>
-    <button class="btn btn-secondary" id="shareBtn">
+    <button class="btn btn-secondary chrome-collapsible" id="shareBtn">
       <span class="btn-icon">&#128172;</span>
       <span data-i18n="btnShare">שתף את המשפט</span>
     </button>
+    <button class="more-actions-btn" id="moreActionsBtn" style="display:none">&#8942; עוד</button>
   </div>
 
   <!-- Footer -->
   <footer class="footer">
-    <div class="footer-links">
+    <div class="footer-links chrome-collapsible">
       <a href="#" class="footer-link" id="donateBtn">&#9829; <span id="donateBtnLabel" data-i18n="btnDonate">אוהב את האפליקציה? שדרג ל-AI Coach אישי</span></a>
     </div>
-    <p class="no-ads-badge" data-i18n="noAds">ללא פרסומות. לתמיד.</p>
+    <p class="no-ads-badge chrome-collapsible" data-i18n="noAds">ללא פרסומות. לתמיד.</p>
     <p class="footer-credit">
       פותח על ידי <a href="https://www.linkedin.com/in/urielzion" target="_blank" rel="noopener noreferrer" class="footer-credit-link">אוריאל ציון</a>
       &nbsp;·&nbsp;
@@ -321,6 +322,15 @@
 
     <!-- ===== Tab: More ===== -->
     <div class="tab-content" data-tab-content="more">
+      <div class="setting-group">
+        <h3>&#128241; <span data-i18n="homeModeTitle">מסך הבית</span></h3>
+        <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 8px;" data-i18n="homeModeDesc">מינימלי מציג רק את המשפט והפעולות העיקריות; מלא מציג גם שיתוף ותרומה על המסך</p>
+        <div class="lang-selector" id="homeModeSelector">
+          <button class="lang-btn home-mode-btn" id="homeModeMinimalBtn" data-mode="minimal" data-i18n="homeModeMinimal">מינימלי</button>
+          <button class="lang-btn home-mode-btn" id="homeModeFullBtn" data-mode="full" data-i18n="homeModeFull">מלא</button>
+        </div>
+      </div>
+
       <div class="setting-group">
         <h3>&#128260; <span data-i18n="updateTitle">עדכון גרסה</span></h3>
         <button class="btn btn-secondary" id="checkUpdateBtn" style="font-size: 0.85rem;">

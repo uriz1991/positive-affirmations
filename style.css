@@ -872,6 +872,19 @@ body {
   opacity: 0.5;
 }
 
+.more-actions-btn {
+  display: block;
+  margin: 8px auto 0;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  cursor: pointer;
+  font-family: inherit;
+  opacity: 0.8;
+  text-decoration: underline dotted;
+}
+
 .upgrade-chip {
   display: block;
   width: 100%;
