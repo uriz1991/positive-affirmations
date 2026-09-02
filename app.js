@@ -401,7 +401,7 @@ function setupEventListeners() {
   document.getElementById('donateBtn').addEventListener('click', (e) => {
     e.preventDefault();
     if (isPro) {
-      window.open('https://buymeacoffee.com/uriel.zion', '_blank', 'noopener,noreferrer');
+      handleManagePortal();
     } else {
       document.getElementById('upgradeDialog').classList.add('active');
     }
