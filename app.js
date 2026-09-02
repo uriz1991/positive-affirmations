@@ -376,6 +376,13 @@ function setupEventListeners() {
     lastCameraTap = now;
   });
 
+  // Read affirmation aloud
+  if ('speechSynthesis' in window) {
+    document.getElementById('speakBtn').addEventListener('click', speakCurrentAffirmation);
+  } else {
+    document.getElementById('speakBtn').style.display = 'none';
+  }
+
   // Share button
   document.getElementById('shareBtn').addEventListener('click', shareAffirmation);
 
@@ -601,6 +608,18 @@ function closeCamera() {
   }
   document.getElementById('cameraSection').classList.remove('active');
   stopCameraCountdown();
+}
+
+// ===== Accessibility =====
+const TTS_LANG_MAP = { he: 'he-IL', en: 'en-US', fr: 'fr-FR', es: 'es-ES' };
+
+function speakCurrentAffirmation() {
+  if (!('speechSynthesis' in window) || !currentAffirmation) return;
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(currentAffirmation.text);
+  utterance.lang = TTS_LANG_MAP[currentLang] || 'he-IL';
+  window.speechSynthesis.speak(utterance);
+  logAnalyticsEvent('tts_played');
 }
 
 // ===== Share =====

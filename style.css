@@ -376,15 +376,35 @@ body {
   cursor: pointer;
 }
 
+.affirmation-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  margin-top: 12px;
+}
+
 .favorite-btn {
   background: none;
   border: none;
   font-size: 1.8rem;
   color: var(--text-secondary);
   cursor: pointer;
-  margin-top: 12px;
   transition: color 0.2s ease, transform 0.2s ease;
   line-height: 1;
+}
+
+.speak-btn {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  line-height: 1;
+}
+
+.speak-btn:active {
+  color: var(--accent);
 }
 
 .favorite-btn.active {
@@ -1229,6 +1249,15 @@ body {
 
 .animate-in {
   animation: fadeInUp 0.6s ease forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* Desktop */
