@@ -859,8 +859,26 @@ function isTimeMatch(current, target) {
   return currentMinutes === targetMinutes || currentMinutes === targetMinutes + 1;
 }
 
+// Same priority as the server-side FCM path: personal affirmation, then
+// today's unfinished goal step, then an active AI Coach line, else whatever
+// is currently on screen.
+function pickClientNotificationBody() {
+  const personal = getPersonalAffirmations().filter(Boolean);
+  if (personal.length) return personal[Math.floor(Math.random() * personal.length)];
+
+  const nextStep = (goalData.steps || []).find((s) => !s.done);
+  if (nextStep?.text) return nextStep.text;
+
+  if (isPro && lastPersonalPlan?.affirmations?.length) {
+    const arr = lastPersonalPlan.affirmations;
+    return arr[Math.floor(Math.random() * arr.length)];
+  }
+
+  return currentAffirmation ? currentAffirmation.text : '';
+}
+
 function sendNotification(title, reminderId) {
-  const body = currentAffirmation ? currentAffirmation.text : '';
+  const body = pickClientNotificationBody();
   if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
     navigator.serviceWorker.controller.postMessage({ type: 'SHOW_NOTIFICATION', title, body });
     if (reminderId) {

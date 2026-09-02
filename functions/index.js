@@ -44,6 +44,28 @@ function pickFallbackAffirmation() {
   return FALLBACK_AFFIRMATIONS[Math.floor(Math.random() * FALLBACK_AFFIRMATIONS.length)];
 }
 
+// Personal content beats the generic pool for a reminder body: the user's
+// own affirmations first, then their next unfinished goal step, then an
+// AI Coach line (only if their subscription is actually still active —
+// checked lazily so non-Pro users never pay for the extra read).
+async function pickNotificationBody(data, uid) {
+  const personal = Array.isArray(data.personalAffirmations) ? data.personalAffirmations.filter(Boolean) : [];
+  if (personal.length) return personal[Math.floor(Math.random() * personal.length)];
+
+  const nextStep = (data.goalData?.steps || []).find((s) => !s.done);
+  if (nextStep?.text) return nextStep.text;
+
+  const planAffirmations = data.personalPlan?.affirmations;
+  if (Array.isArray(planAffirmations) && planAffirmations.length) {
+    const subSnap = await db.doc('subscriptions/' + uid).get();
+    if (hasActiveAccess(subSnap.data())) {
+      return planAffirmations[Math.floor(Math.random() * planAffirmations.length)];
+    }
+  }
+
+  return pickFallbackAffirmation();
+}
+
 // A reminder fires once per day, within a window after its set time (the
 // scheduler runs every 5 min, so a 6-min window guarantees each reminder is
 // caught exactly once even if a run is briefly delayed).
@@ -92,7 +114,7 @@ exports.sendScheduledReminders = onSchedule('every 5 minutes', async () => {
         tokens,
         notification: {
           title: reminder.label || 'אמירות חיוביות',
-          body: pickFallbackAffirmation()
+          body: await pickNotificationBody(data, userDoc.id)
         },
         webpush: {
           fcmOptions: { link: 'https://uriz1991.github.io/positive-affirmations/' }
