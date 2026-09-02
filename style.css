@@ -850,17 +850,11 @@ body {
 /* Settings tabs */
 .settings-tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 4px;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
   padding-bottom: 8px;
   margin-bottom: 16px;
   border-bottom: 1px solid var(--card-border);
-}
-
-.settings-tabs::-webkit-scrollbar {
-  display: none;
 }
 
 .settings-tab {
@@ -868,12 +862,11 @@ body {
   border: none;
   color: var(--text-secondary);
   font-family: inherit;
-  font-size: 0.75rem;
-  padding: 8px 10px;
+  font-size: 0.72rem;
+  padding: 7px 9px;
   border-radius: 10px;
   cursor: pointer;
   white-space: nowrap;
-  flex-shrink: 0;
   transition: background 0.2s, color 0.2s;
 }
 
