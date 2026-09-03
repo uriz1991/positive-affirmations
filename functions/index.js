@@ -23,6 +23,20 @@ function secretValue(secretParam) {
   return secretParam.value().trim();
 }
 
+// The Gemini SDK's errors carry the real reason (rate limit, invalid model,
+// bad key, etc.) in fields beyond .message — logging only err.message has
+// repeatedly turned "why did this fail" into a second round-trip through
+// production logs. Capture everything useful in one place.
+function describeGeminiError(err) {
+  return {
+    message: err?.message,
+    name: err?.name,
+    status: err?.status,
+    statusText: err?.statusText,
+    errorDetails: err?.errorDetails
+  };
+}
+
 setGlobalOptions({ region: 'me-west1', maxInstances: 3 });
 
 initializeApp();
@@ -207,8 +221,9 @@ exports.generateDailyAffirmations = onSchedule({
         });
         written++;
       });
-    } catch {
+    } catch (err) {
       // One category failing (e.g. transient API error) shouldn't block the rest.
+      logger.error('Daily affirmation generation failed for category', { category: key, ...describeGeminiError(err) });
     }
   }
 
@@ -451,7 +466,7 @@ exports.generatePersonalPlan = onCall({ secrets: [geminiApiKey] }, async (reques
   try {
     result = await model.generateContent(prompt);
   } catch (err) {
-    logger.error('Gemini generation failed for personal plan', { message: err.message });
+    logger.error('Gemini generation failed for personal plan', describeGeminiError(err));
     throw new HttpsError('internal', `AI generation failed: ${err.message}`);
   }
 
@@ -530,7 +545,7 @@ exports.sendWeeklyCoachInsight = onSchedule({
       try {
         result = await model.generateContent(prompt);
       } catch (err) {
-        logger.error('Weekly coach Gemini call failed', { uid, message: err.message });
+        logger.error('Weekly coach Gemini call failed', { uid, ...describeGeminiError(err) });
         return;
       }
 
