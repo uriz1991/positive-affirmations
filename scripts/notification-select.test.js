@@ -2,7 +2,17 @@
 // Exercises the shared reminder picker: no repeats across 20 morning picks,
 // noon steps, and the evening question. Run: node scripts/notification-select.test.js
 const assert = require('assert');
-const { pickFromPool, slotForReminder } = require('../shared/notification-select');
+const {
+  pickFromPool,
+  slotForReminder,
+  shouldSkipLocalReminders,
+  buildLocalizedPool,
+  personalTextsForLanguage,
+  favoriteStorageKey,
+  isFavoriteEntry,
+  withoutFavorite,
+  favoriteDisplayText
+} = require('../shared/notification-select');
 const pool = require('../data/notification-pool.json').items;
 
 let failures = 0;
@@ -120,6 +130,48 @@ check('a personal sentence is occasional, not every pick', () => {
   assert.ok(always.every((row) => row.text === 'המשפט האישי שלי לבדיקה'));
   const never = picks('morning', 8, { personalRate: 0, personalTexts: ['המשפט האישי שלי לבדיקה'], seed: 5 });
   assert.ok(never.every((row) => row.slot === 'morning'));
+});
+
+check('local reminders stay on unless the signed-in user saved the token', () => {
+  assert.strictEqual(shouldSkipLocalReminders({ signedIn: false, currentUid: null, serverUid: 'uid-a' }), false);
+  assert.strictEqual(shouldSkipLocalReminders({ signedIn: true, currentUid: 'uid-a', serverUid: null }), false);
+  assert.strictEqual(shouldSkipLocalReminders({ signedIn: true, currentUid: 'uid-b', serverUid: 'uid-a' }), false);
+  assert.strictEqual(shouldSkipLocalReminders({ signedIn: false, currentUid: null, serverUid: null }), false);
+  assert.strictEqual(shouldSkipLocalReminders({ signedIn: true, currentUid: 'uid-a', serverUid: 'uid-a' }), true);
+});
+
+check('non-Hebrew pools never include Hebrew', () => {
+  const affirmations = JSON.parse(require('fs').readFileSync(require('path').join(__dirname, '../data/affirmations-en.json'), 'utf8')).affirmations;
+  const evening = JSON.parse(require('fs').readFileSync(require('path').join(__dirname, '../locales/en.json'), 'utf8')).journalDesc;
+  const localized = buildLocalizedPool(affirmations.concat([{ text: 'אני מאמין בעצמי' }]), evening);
+  assert.ok(localized.length > 10);
+  localized.forEach((item) => {
+    assert.ok(!/[\u0590-\u05FF]/.test(item.text), item.text);
+    assert.ok(item.slot === 'morning' || item.slot === 'noon' || item.slot === 'evening');
+  });
+  const eveningItem = localized.find((item) => item.slot === 'evening');
+  assert.strictEqual(eveningItem.text, evening);
+  assert.ok(eveningItem.text.startsWith('What did you actually do today'));
+  const morning = pickFromPool({ pool: localized, slot: 'morning', history: [], personalRate: 0, random: () => 0 });
+  assert.ok(!/[\u0590-\u05FF]/.test(morning.text), morning.text);
+  const dropped = personalTextsForLanguage(['שלום', 'A step I wrote'], 'en');
+  assert.deepStrictEqual(dropped, ['A step I wrote']);
+  console.log('    english evening:', eveningItem.text);
+});
+
+check('favorites keep an id and still match older text entries', () => {
+  const item = { id: 'a1', text: 'אני חושב בגדול', textF: 'אני חושבת בגדול' };
+  assert.strictEqual(favoriteStorageKey(item), 'a1');
+  assert.strictEqual(isFavoriteEntry(['אני חושב בגדול'], item), true);
+  assert.strictEqual(isFavoriteEntry(['a1'], item), true);
+  assert.strictEqual(isFavoriteEntry(['אני חושבת בגדול'], item), true);
+  assert.strictEqual(isFavoriteEntry(['something else'], item), false);
+  assert.deepStrictEqual(withoutFavorite(['a1', 'אני חושב בגדול', 'keep me'], item), ['keep me']);
+  const list = [item];
+  assert.strictEqual(favoriteDisplayText('a1', list, 'f'), 'אני חושבת בגדול');
+  assert.strictEqual(favoriteDisplayText('אני חושב בגדול', list, 'f'), 'אני חושבת בגדול');
+  assert.strictEqual(favoriteDisplayText('אני חושב בגדול', list, 'm'), 'אני חושב בגדול');
+  assert.strictEqual(favoriteDisplayText('a sentence with no match', list, 'f'), 'a sentence with no match');
 });
 
 check('recent history stays capped at 40', () => {

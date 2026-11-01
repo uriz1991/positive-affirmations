@@ -1,0 +1,1511 @@
+{
+  "version": 1,
+  "language": "es",
+  "items": [
+    {
+      "id": "m1xkbvfp",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Esto también es para bien",
+      "textF": "Esto también es para bien"
+    },
+    {
+      "id": "n1jbwpow",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Esto también es para bien",
+      "textF": "Esto también es para bien"
+    },
+    {
+      "id": "m1l3utq5",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Los pasos del hombre son dirigidos por el Eterno",
+      "textF": "Los pasos del hombre son dirigidos por el Eterno"
+    },
+    {
+      "id": "nhgxf42",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Los pasos del hombre son dirigidos por el Eterno",
+      "textF": "Los pasos del hombre son dirigidos por el Eterno"
+    },
+    {
+      "id": "m1fcx0zo",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "El Eterno es mi pastor, nada me faltará",
+      "textF": "El Eterno es mi pastor, nada me faltará"
+    },
+    {
+      "id": "nplu9tt",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "El Eterno es mi pastor, nada me faltará",
+      "textF": "El Eterno es mi pastor, nada me faltará"
+    },
+    {
+      "id": "muupcvf",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Confía en el Eterno con todo tu corazón y no te apoyes en tu propia sabiduría",
+      "textF": "Confía en el Eterno con todo tu corazón y no te apoyes en tu propia sabiduría"
+    },
+    {
+      "id": "nsitpvq",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Confía en el Eterno con todo tu corazón y no te apoyes en tu propia sabiduría",
+      "textF": "Confía en el Eterno con todo tu corazón y no te apoyes en tu propia sabiduría"
+    },
+    {
+      "id": "m15id9o7",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Sé fuerte y valiente, no tengas miedo",
+      "textF": "Sé fuerte y valiente, no tengas miedo"
+    },
+    {
+      "id": "n5pwjdi",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Sé fuerte y valiente, no tengas miedo",
+      "textF": "Sé fuerte y valiente, no tengas miedo"
+    },
+    {
+      "id": "m8m7x6r",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "El Eterno es mi luz y mi salvación — ¿a quién temeré?",
+      "textF": "El Eterno es mi luz y mi salvación — ¿a quién temeré?"
+    },
+    {
+      "id": "n6pkb2u",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "El Eterno es mi luz y mi salvación — ¿a quién temeré?",
+      "textF": "El Eterno es mi luz y mi salvación — ¿a quién temeré?"
+    },
+    {
+      "id": "mso3q9i",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Ningún hombre toca lo que está destinado para otro",
+      "textF": "Ningún hombre toca lo que está destinado para otro"
+    },
+    {
+      "id": "n1cflxv1",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Ningún hombre toca lo que está destinado para otro",
+      "textF": "Ningún hombre toca lo que está destinado para otro"
+    },
+    {
+      "id": "m68bofa",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Todo tiene su tiempo y su momento bajo el cielo",
+      "textF": "Todo tiene su tiempo y su momento bajo el cielo"
+    },
+    {
+      "id": "n9u16uz",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Todo tiene su tiempo y su momento bajo el cielo",
+      "textF": "Todo tiene su tiempo y su momento bajo el cielo"
+    },
+    {
+      "id": "m15nnq6y",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Echa tu carga sobre el Eterno, y Él te sustentará",
+      "textF": "Echa tu carga sobre el Eterno, y Él te sustentará"
+    },
+    {
+      "id": "n12srw6j",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Echa tu carga sobre el Eterno, y Él te sustentará",
+      "textF": "Echa tu carga sobre el Eterno, y Él te sustentará"
+    },
+    {
+      "id": "my29bit",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "El Eterno vela por ti — el que cuida a Israel no duerme ni dormita",
+      "textF": "El Eterno vela por ti — el que cuida a Israel no duerme ni dormita"
+    },
+    {
+      "id": "n1e7r4wq",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "El Eterno vela por ti — el que cuida a Israel no duerme ni dormita",
+      "textF": "El Eterno vela por ti — el que cuida a Israel no duerme ni dormita"
+    },
+    {
+      "id": "ms407xd",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Incluso en la oscuridad, la luz amanece para los rectos",
+      "textF": "Incluso en la oscuridad, la luz amanece para los rectos"
+    },
+    {
+      "id": "nd51vas",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Incluso en la oscuridad, la luz amanece para los rectos",
+      "textF": "Incluso en la oscuridad, la luz amanece para los rectos"
+    },
+    {
+      "id": "m1961i0i",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Bendeciré al Eterno en todo tiempo; su alabanza estará siempre en mi boca",
+      "textF": "Bendeciré al Eterno en todo tiempo; su alabanza estará siempre en mi boca"
+    },
+    {
+      "id": "n9li8c3",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Bendeciré al Eterno en todo tiempo; su alabanza estará siempre en mi boca",
+      "textF": "Bendeciré al Eterno en todo tiempo; su alabanza estará siempre en mi boca"
+    },
+    {
+      "id": "mwwl8b1",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Todo el mundo es un puente muy angosto, y lo principal es no tener miedo en absoluto",
+      "textF": "Todo el mundo es un puente muy angosto, y lo principal es no tener miedo en absoluto"
+    },
+    {
+      "id": "n1v5o99u",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Todo el mundo es un puente muy angosto, y lo principal es no tener miedo en absoluto",
+      "textF": "Todo el mundo es un puente muy angosto, y lo principal es no tener miedo en absoluto"
+    },
+    {
+      "id": "m10kq1i5",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Es una gran mitzvá estar siempre alegre",
+      "textF": "Es una gran mitzvá estar siempre alegre"
+    },
+    {
+      "id": "n1ij9ibs",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Es una gran mitzvá estar siempre alegre",
+      "textF": "Es una gran mitzvá estar siempre alegre"
+    },
+    {
+      "id": "mofdhdv",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "¡Nunca desesperes! ¡Nunca!",
+      "textF": "¡Nunca desesperes! ¡Nunca!"
+    },
+    {
+      "id": "nnnx6vs",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "¡Nunca desesperes! ¡Nunca!",
+      "textF": "¡Nunca desesperes! ¡Nunca!"
+    },
+    {
+      "id": "m104547d",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Si crees que puedes dañar, cree que puedes reparar",
+      "textF": "Si crees que puedes dañar, cree que puedes reparar"
+    },
+    {
+      "id": "njc8a3m",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Si crees que puedes dañar, cree que puedes reparar",
+      "textF": "Si crees que puedes dañar, cree que puedes reparar"
+    },
+    {
+      "id": "mko3713",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Estás donde están tus pensamientos — asegúrate de que tus pensamientos estén donde quieres estar",
+      "textF": "Estás donde están tus pensamientos — asegúrate de que tus pensamientos estén donde quieres estar"
+    },
+    {
+      "id": "n4obqng",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Estás donde están tus pensamientos — asegúrate de que tus pensamientos estén donde quieres estar",
+      "textF": "Estás donde están tus pensamientos — asegúrate de que tus pensamientos estén donde quieres estar"
+    },
+    {
+      "id": "mgce7v9",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Busca siempre el buen punto en ti mismo y en los demás",
+      "textF": "Busca siempre el buen punto en ti mismo y en los demás"
+    },
+    {
+      "id": "n198jyom",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Busca siempre el buen punto en ti mismo y en los demás",
+      "textF": "Busca siempre el buen punto en ti mismo y en los demás"
+    },
+    {
+      "id": "m19mtro0",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "El día que naciste, el mundo te necesitaba específicamente a ti",
+      "textF": "El día que naciste, el mundo te necesitaba específicamente a ti"
+    },
+    {
+      "id": "nz5eav5",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "El día que naciste, el mundo te necesitaba específicamente a ti",
+      "textF": "El día que naciste, el mundo te necesitaba específicamente a ti"
+    },
+    {
+      "id": "m8nngs3",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "No hay desesperanza en el mundo — en absoluto",
+      "textF": "No hay desesperanza en el mundo — en absoluto"
+    },
+    {
+      "id": "n1vvzhr2",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "No hay desesperanza en el mundo — en absoluto",
+      "textF": "No hay desesperanza en el mundo — en absoluto"
+    },
+    {
+      "id": "m1oxke9k",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "La simplicidad es mayor que toda la sabiduría",
+      "textF": "La simplicidad es mayor que toda la sabiduría"
+    },
+    {
+      "id": "n65t7ct",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "La simplicidad es mayor que toda la sabiduría",
+      "textF": "La simplicidad es mayor que toda la sabiduría"
+    },
+    {
+      "id": "mgldd3d",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Empieza siempre por encontrar un buen punto en ti mismo",
+      "textF": "Empieza siempre por encontrar un buen punto en ti mismo"
+    },
+    {
+      "id": "n1dhfu2k",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Empieza siempre por encontrar un buen punto en ti mismo",
+      "textF": "Empieza siempre por encontrar un buen punto en ti mismo"
+    },
+    {
+      "id": "m1t3bj9z",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Sabe que el hombre debe cruzar un puente muy angosto — lo esencial es no tener miedo",
+      "textF": "Sabe que el hombre debe cruzar un puente muy angosto — lo esencial es no tener miedo"
+    },
+    {
+      "id": "njxwfn4",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Sabe que el hombre debe cruzar un puente muy angosto — lo esencial es no tener miedo",
+      "textF": "Sabe que el hombre debe cruzar un puente muy angosto — lo esencial es no tener miedo"
+    },
+    {
+      "id": "m52yk45",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Aunque Dios te haya quitado todo, te dio a ti mismo — empieza desde ahí",
+      "textF": "Aunque Dios te haya quitado todo, te dio a ti mismo — empieza desde ahí"
+    },
+    {
+      "id": "n1utfws4",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Aunque Dios te haya quitado todo, te dio a ti mismo — empieza desde ahí",
+      "textF": "Aunque Dios te haya quitado todo, te dio a ti mismo — empieza desde ahí"
+    },
+    {
+      "id": "m2of266",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Todo sucede exactamente como debe ser para mí",
+      "textF": "Todo sucede exactamente como debe ser para mí"
+    },
+    {
+      "id": "n1cqvjnj",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Todo sucede exactamente como debe ser para mí",
+      "textF": "Todo sucede exactamente como debe ser para mí"
+    },
+    {
+      "id": "mwkoae0",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Estoy exactamente donde necesito estar",
+      "textF": "Estoy exactamente donde necesito estar"
+    },
+    {
+      "id": "ny80ozz",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Estoy exactamente donde necesito estar",
+      "textF": "Estoy exactamente donde necesito estar"
+    },
+    {
+      "id": "m1fxqnxx",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "El universo tiene un plan perfecto para mí",
+      "textF": "El universo tiene un plan perfecto para mí"
+    },
+    {
+      "id": "n1tm06hy",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "El universo tiene un plan perfecto para mí",
+      "textF": "El universo tiene un plan perfecto para mí"
+    },
+    {
+      "id": "m18vx5a5",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "La providencia divina guía cada paso de mi vida",
+      "textF": "La providencia divina guía cada paso de mi vida"
+    },
+    {
+      "id": "n1gfeasc",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "La providencia divina guía cada paso de mi vida",
+      "textF": "La providencia divina guía cada paso de mi vida"
+    },
+    {
+      "id": "m18wlmeu",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Nada es accidental — todo tiene un propósito profundo",
+      "textF": "Nada es accidental — todo tiene un propósito profundo"
+    },
+    {
+      "id": "n1tjlb7",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Nada es accidental — todo tiene un propósito profundo",
+      "textF": "Nada es accidental — todo tiene un propósito profundo"
+    },
+    {
+      "id": "m19k00jz",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Estoy protegido y guiado en todo momento",
+      "textF": "Estoy protegido y guiado en todo momento"
+    },
+    {
+      "id": "n16mn8v0",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Estoy protegido y guiado en todo momento",
+      "textF": "Estoy protegido y guiado en todo momento"
+    },
+    {
+      "id": "mit6o8d",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Cada desafío viene a hacerme más fuerte y más sabio",
+      "textF": "Cada desafío viene a hacerme más fuerte y más sabio"
+    },
+    {
+      "id": "n8i95fc",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Cada desafío viene a hacerme más fuerte y más sabio",
+      "textF": "Cada desafío viene a hacerme más fuerte y más sabio"
+    },
+    {
+      "id": "m3iunqd",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Detrás de cada dificultad se esconde una bendición que aún no he visto",
+      "textF": "Detrás de cada dificultad se esconde una bendición que aún no he visto"
+    },
+    {
+      "id": "npas1ne",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Detrás de cada dificultad se esconde una bendición que aún no he visto",
+      "textF": "Detrás de cada dificultad se esconde una bendición que aún no he visto"
+    },
+    {
+      "id": "mjzmsmc",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Confío plenamente en el proceso de la vida",
+      "textF": "Confío plenamente en el proceso de la vida"
+    },
+    {
+      "id": "n1ybt54v",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Confío plenamente en el proceso de la vida",
+      "textF": "Confío plenamente en el proceso de la vida"
+    },
+    {
+      "id": "mlwhwx",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Soy sostenido por algo más grande que yo mismo",
+      "textF": "Soy sostenido por algo más grande que yo mismo"
+    },
+    {
+      "id": "nfjruae",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Soy sostenido por algo más grande que yo mismo",
+      "textF": "Soy sostenido por algo más grande que yo mismo"
+    },
+    {
+      "id": "mkebmko",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Todo lo que me ocurre sirve a mi mayor bien",
+      "textF": "Todo lo que me ocurre sirve a mi mayor bien"
+    },
+    {
+      "id": "nhw5mu9",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Todo lo que me ocurre sirve a mi mayor bien",
+      "textF": "Todo lo que me ocurre sirve a mi mayor bien"
+    },
+    {
+      "id": "m62mjpg",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Las puertas correctas se abren para mí en el momento correcto",
+      "textF": "Las puertas correctas se abren para mí en el momento correcto"
+    },
+    {
+      "id": "nfoomqd",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Las puertas correctas se abren para mí en el momento correcto",
+      "textF": "Las puertas correctas se abren para mí en el momento correcto"
+    },
+    {
+      "id": "m1e8k4o7",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Creo en mis capacidades y en mi valor infinito",
+      "textF": "Creo en mis capacidades y en mi valor infinito"
+    },
+    {
+      "id": "nkz86vk",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Creo en mis capacidades y en mi valor infinito",
+      "textF": "Creo en mis capacidades y en mi valor infinito"
+    },
+    {
+      "id": "m5octdp",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Enfrento cada desafío con valentía y confianza",
+      "textF": "Enfrento cada desafío con valentía y confianza"
+    },
+    {
+      "id": "n167vx1i",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Enfrento cada desafío con valentía y confianza",
+      "textF": "Enfrento cada desafío con valentía y confianza"
+    },
+    {
+      "id": "mrh707s",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Mi voz importa y merece ser escuchada",
+      "textF": "Mi voz importa y merece ser escuchada"
+    },
+    {
+      "id": "n1ar22at",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Mi voz importa y merece ser escuchada",
+      "textF": "Mi voz importa y merece ser escuchada"
+    },
+    {
+      "id": "mdyr9tg",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Soy capaz de lograr todo lo que me proponga",
+      "textF": "Soy capaz de lograr todo lo que me proponga"
+    },
+    {
+      "id": "nvgj79p",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Soy capaz de lograr todo lo que me proponga",
+      "textF": "Soy capaz de lograr todo lo que me proponga"
+    },
+    {
+      "id": "mavxd97",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Me mantengo en mi fuerza y digo mi verdad",
+      "textF": "Me mantengo en mi fuerza y digo mi verdad"
+    },
+    {
+      "id": "n24bd1a",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Me mantengo en mi fuerza y digo mi verdad",
+      "textF": "Me mantengo en mi fuerza y digo mi verdad"
+    },
+    {
+      "id": "m15gqk8d",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Cada día me vuelvo más fuerte y más capaz",
+      "textF": "Cada día me vuelvo más fuerte y más capaz"
+    },
+    {
+      "id": "nictkgk",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Cada día me vuelvo más fuerte y más capaz",
+      "textF": "Cada día me vuelvo más fuerte y más capaz"
+    },
+    {
+      "id": "m1xooavh",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Me merezco el éxito y lo reclamo plenamente",
+      "textF": "Me merezco el éxito y lo reclamo plenamente"
+    },
+    {
+      "id": "nya18o4",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Me merezco el éxito y lo reclamo plenamente",
+      "textF": "Me merezco el éxito y lo reclamo plenamente"
+    },
+    {
+      "id": "m1cpwzpg",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Mi potencial es ilimitado y está en constante expansión",
+      "textF": "Mi potencial es ilimitado y está en constante expansión"
+    },
+    {
+      "id": "nr0gje9",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Mi potencial es ilimitado y está en constante expansión",
+      "textF": "Mi potencial es ilimitado y está en constante expansión"
+    },
+    {
+      "id": "m11u7xa7",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Confío completamente en mí mismo — tengo lo que se necesita",
+      "textF": "Confío completamente en mí mismo — tengo lo que se necesita"
+    },
+    {
+      "id": "nbzn0xq",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Confío completamente en mí mismo — tengo lo que se necesita",
+      "textF": "Confío completamente en mí mismo — tengo lo que se necesita"
+    },
+    {
+      "id": "m13w6qs8",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Soy suficiente, exactamente como soy, ahora mismo",
+      "textF": "Soy suficiente, exactamente como soy, ahora mismo"
+    },
+    {
+      "id": "n1tkmk49",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Soy suficiente, exactamente como soy, ahora mismo",
+      "textF": "Soy suficiente, exactamente como soy, ahora mismo"
+    },
+    {
+      "id": "m1qccmhd",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Entro a cada espacio con confianza y gracia",
+      "textF": "Entro a cada espacio con confianza y gracia"
+    },
+    {
+      "id": "n1mied70",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Entro a cada espacio con confianza y gracia",
+      "textF": "Entro a cada espacio con confianza y gracia"
+    },
+    {
+      "id": "m8xriny",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Respiro profundamente y libero toda tensión",
+      "textF": "Respiro profundamente y libero toda tensión"
+    },
+    {
+      "id": "n1m945r7",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Respiro profundamente y libero toda tensión",
+      "textF": "Respiro profundamente y libero toda tensión"
+    },
+    {
+      "id": "m12srzhw",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Estoy en paz conmigo mismo y con el mundo que me rodea",
+      "textF": "Estoy en paz conmigo mismo y con el mundo que me rodea"
+    },
+    {
+      "id": "near3i3",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Estoy en paz conmigo mismo y con el mundo que me rodea",
+      "textF": "Estoy en paz conmigo mismo y con el mundo que me rodea"
+    },
+    {
+      "id": "m1eyjty8",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "La paz fluye por cada célula de mi ser",
+      "textF": "La paz fluye por cada célula de mi ser"
+    },
+    {
+      "id": "n5ycot3",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "La paz fluye por cada célula de mi ser",
+      "textF": "La paz fluye por cada célula de mi ser"
+    },
+    {
+      "id": "mev5i41",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Suelto lo que no puedo controlar y me enfoco en lo que sí puedo",
+      "textF": "Suelto lo que no puedo controlar y me enfoco en lo que sí puedo"
+    },
+    {
+      "id": "nvept4c",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Suelto lo que no puedo controlar y me enfoco en lo que sí puedo",
+      "textF": "Suelto lo que no puedo controlar y me enfoco en lo que sí puedo"
+    },
+    {
+      "id": "mppto6k",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "En este momento, estoy seguro, tranquilo y centrado",
+      "textF": "En este momento, estoy seguro, tranquilo y centrado"
+    },
+    {
+      "id": "n1w59g85",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "En este momento, estoy seguro, tranquilo y centrado",
+      "textF": "En este momento, estoy seguro, tranquilo y centrado"
+    },
+    {
+      "id": "mbnsya",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Elijo la paz sobre la preocupación, siempre",
+      "textF": "Elijo la paz sobre la preocupación, siempre"
+    },
+    {
+      "id": "n1mskjff",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Elijo la paz sobre la preocupación, siempre",
+      "textF": "Elijo la paz sobre la preocupación, siempre"
+    },
+    {
+      "id": "m1rkhmjk",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Mi mente está clara, mi corazón está tranquilo, mi alma está en reposo",
+      "textF": "Mi mente está clara, mi corazón está tranquilo, mi alma está en reposo"
+    },
+    {
+      "id": "n16vib3v",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Mi mente está clara, mi corazón está tranquilo, mi alma está en reposo",
+      "textF": "Mi mente está clara, mi corazón está tranquilo, mi alma está en reposo"
+    },
+    {
+      "id": "m1h8o1n9",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Soy la calma en el centro de la tormenta",
+      "textF": "Soy la calma en el centro de la tormenta"
+    },
+    {
+      "id": "nonyhae",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Soy la calma en el centro de la tormenta",
+      "textF": "Soy la calma en el centro de la tormenta"
+    },
+    {
+      "id": "mkkd6lf",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Cada respiración me llena de paz y presencia",
+      "textF": "Cada respiración me llena de paz y presencia"
+    },
+    {
+      "id": "nfkz1os",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Cada respiración me llena de paz y presencia",
+      "textF": "Cada respiración me llena de paz y presencia"
+    },
+    {
+      "id": "mltficl",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Confío en que todo está bien, incluso cuando aún no puedo verlo",
+      "textF": "Confío en que todo está bien, incluso cuando aún no puedo verlo"
+    },
+    {
+      "id": "n16jntm8",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Confío en que todo está bien, incluso cuando aún no puedo verlo",
+      "textF": "Confío en que todo está bien, incluso cuando aún no puedo verlo"
+    },
+    {
+      "id": "mel5nep",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "La abundancia fluye hacia mí de forma natural y sin esfuerzo",
+      "textF": "La abundancia fluye hacia mí de forma natural y sin esfuerzo"
+    },
+    {
+      "id": "n1b1bpl6",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "La abundancia fluye hacia mí de forma natural y sin esfuerzo",
+      "textF": "La abundancia fluye hacia mí de forma natural y sin esfuerzo"
+    },
+    {
+      "id": "mlpmhzh",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Me merezco el éxito en cada área de mi vida",
+      "textF": "Me merezco el éxito en cada área de mi vida"
+    },
+    {
+      "id": "n12c2mvw",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Me merezco el éxito en cada área de mi vida",
+      "textF": "Me merezco el éxito en cada área de mi vida"
+    },
+    {
+      "id": "m1mvddor",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Atraigo oportunidades y abro puertas dondequiera que voy",
+      "textF": "Atraigo oportunidades y abro puertas dondequiera que voy"
+    },
+    {
+      "id": "n1r6eowg",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Atraigo oportunidades y abro puertas dondequiera que voy",
+      "textF": "Atraigo oportunidades y abro puertas dondequiera que voy"
+    },
+    {
+      "id": "m80ub4a",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Mi trabajo crea valor genuino en el mundo",
+      "textF": "Mi trabajo crea valor genuino en el mundo"
+    },
+    {
+      "id": "nupnexj",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Mi trabajo crea valor genuino en el mundo",
+      "textF": "Mi trabajo crea valor genuino en el mundo"
+    },
+    {
+      "id": "m1wcb1yg",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "La prosperidad es mi estado natural y legítimo",
+      "textF": "La prosperidad es mi estado natural y legítimo"
+    },
+    {
+      "id": "n1hw9pd7",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "La prosperidad es mi estado natural y legítimo",
+      "textF": "La prosperidad es mi estado natural y legítimo"
+    },
+    {
+      "id": "m1pvvjf",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Estoy abierto y listo para recibir todo el bien que viene hacia mí",
+      "textF": "Estoy abierto y listo para recibir todo el bien que viene hacia mí"
+    },
+    {
+      "id": "ne31pog",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Estoy abierto y listo para recibir todo el bien que viene hacia mí",
+      "textF": "Estoy abierto y listo para recibir todo el bien que viene hacia mí"
+    },
+    {
+      "id": "myze0gq",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "El éxito se siente atraído hacia mí como un imán",
+      "textF": "El éxito se siente atraído hacia mí como un imán"
+    },
+    {
+      "id": "n3ehkrl",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "El éxito se siente atraído hacia mí como un imán",
+      "textF": "El éxito se siente atraído hacia mí como un imán"
+    },
+    {
+      "id": "mq3q5j9",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Cada día me acerco más a mis mayores metas",
+      "textF": "Cada día me acerco más a mis mayores metas"
+    },
+    {
+      "id": "nlt3n6a",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Cada día me acerco más a mis mayores metas",
+      "textF": "Cada día me acerco más a mis mayores metas"
+    },
+    {
+      "id": "mv7sypk",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Tengo todo lo que necesito para tener éxito ahora mismo",
+      "textF": "Tengo todo lo que necesito para tener éxito ahora mismo"
+    },
+    {
+      "id": "n138zg1x",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Tengo todo lo que necesito para tener éxito ahora mismo",
+      "textF": "Tengo todo lo que necesito para tener éxito ahora mismo"
+    },
+    {
+      "id": "m1d02586",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "El universo conspira a mi favor",
+      "textF": "El universo conspira a mi favor"
+    },
+    {
+      "id": "n1s93frj",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "El universo conspira a mi favor",
+      "textF": "El universo conspira a mi favor"
+    },
+    {
+      "id": "m336or",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Me amo y me acepto incondicionalmente",
+      "textF": "Me amo y me acepto incondicionalmente"
+    },
+    {
+      "id": "nj9pxoq",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Me amo y me acepto incondicionalmente",
+      "textF": "Me amo y me acepto incondicionalmente"
+    },
+    {
+      "id": "mhm5bew",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Merezco amor profundo y un verdadero sentido de pertenencia",
+      "textF": "Merezco amor profundo y un verdadero sentido de pertenencia"
+    },
+    {
+      "id": "n5620qd",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Merezco amor profundo y un verdadero sentido de pertenencia",
+      "textF": "Merezco amor profundo y un verdadero sentido de pertenencia"
+    },
+    {
+      "id": "m1j9qnm8",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Me trato con compasión y amabilidad en todo momento",
+      "textF": "Me trato con compasión y amabilidad en todo momento"
+    },
+    {
+      "id": "n1lhktd",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Me trato con compasión y amabilidad en todo momento",
+      "textF": "Me trato con compasión y amabilidad en todo momento"
+    },
+    {
+      "id": "m16j02ac",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Estoy orgulloso de quien soy y en quien me estoy convirtiendo",
+      "textF": "Estoy orgulloso de quien soy y en quien me estoy convirtiendo"
+    },
+    {
+      "id": "ndx7ik1",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Estoy orgulloso de quien soy y en quien me estoy convirtiendo",
+      "textF": "Estoy orgulloso de quien soy y en quien me estoy convirtiendo"
+    },
+    {
+      "id": "md6fxmd",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Mi unicidad es mi mayor regalo para el mundo",
+      "textF": "Mi unicidad es mi mayor regalo para el mundo"
+    },
+    {
+      "id": "n1rl92i",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Mi unicidad es mi mayor regalo para el mundo",
+      "textF": "Mi unicidad es mi mayor regalo para el mundo"
+    },
+    {
+      "id": "m1qxgtdf",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Merezco toda la bondad y belleza que la vida tiene para ofrecer",
+      "textF": "Merezco toda la bondad y belleza que la vida tiene para ofrecer"
+    },
+    {
+      "id": "n96dap6",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Merezco toda la bondad y belleza que la vida tiene para ofrecer",
+      "textF": "Merezco toda la bondad y belleza que la vida tiene para ofrecer"
+    },
+    {
+      "id": "m96laa2",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Soy mi mejor amigo y mi mayor aliado",
+      "textF": "Soy mi mejor amigo y mi mayor aliado"
+    },
+    {
+      "id": "ngirbkl",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Soy mi mejor amigo y mi mayor aliado",
+      "textF": "Soy mi mejor amigo y mi mayor aliado"
+    },
+    {
+      "id": "muf68qb",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Celebro mi crecimiento y me perdono mis errores",
+      "textF": "Celebro mi crecimiento y me perdono mis errores"
+    },
+    {
+      "id": "n13tpzhq",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Celebro mi crecimiento y me perdono mis errores",
+      "textF": "Celebro mi crecimiento y me perdono mis errores"
+    },
+    {
+      "id": "m18u436p",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Soy suficiente — siempre, en todos los sentidos, para siempre",
+      "textF": "Soy suficiente — siempre, en todos los sentidos, para siempre"
+    },
+    {
+      "id": "n6ygs40",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Soy suficiente — siempre, en todos los sentidos, para siempre",
+      "textF": "Soy suficiente — siempre, en todos los sentidos, para siempre"
+    },
+    {
+      "id": "mz0yx09",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Mi valor no se mide por mi productividad ni mis resultados",
+      "textF": "Mi valor no se mide por mi productividad ni mis resultados"
+    },
+    {
+      "id": "n1tu3b6u",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Mi valor no se mide por mi productividad ni mis resultados",
+      "textF": "Mi valor no se mide por mi productividad ni mis resultados"
+    },
+    {
+      "id": "m1ck0xvq",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Abrazo el cambio como una invitación a crecer",
+      "textF": "Abrazo el cambio como una invitación a crecer"
+    },
+    {
+      "id": "n1opsm5f",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Abrazo el cambio como una invitación a crecer",
+      "textF": "Abrazo el cambio como una invitación a crecer"
+    },
+    {
+      "id": "mwcqmnw",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Cada final lleva la semilla de un bello nuevo comienzo",
+      "textF": "Cada final lleva la semilla de un bello nuevo comienzo"
+    },
+    {
+      "id": "ns83h2j",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Cada final lleva la semilla de un bello nuevo comienzo",
+      "textF": "Cada final lleva la semilla de un bello nuevo comienzo"
+    },
+    {
+      "id": "m1llgmel",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Soy flexible, resiliente y profundamente adaptable",
+      "textF": "Soy flexible, resiliente y profundamente adaptable"
+    },
+    {
+      "id": "nt7ruhm",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Soy flexible, resiliente y profundamente adaptable",
+      "textF": "Soy flexible, resiliente y profundamente adaptable"
+    },
+    {
+      "id": "mwhlg0k",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Confío en que cada transición me lleva a algo mejor",
+      "textF": "Confío en que cada transición me lleva a algo mejor"
+    },
+    {
+      "id": "n14azg5l",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Confío en que cada transición me lleva a algo mejor",
+      "textF": "Confío en que cada transición me lleva a algo mejor"
+    },
+    {
+      "id": "mr6hq3v",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "El cambio es la puerta de mi transformación",
+      "textF": "El cambio es la puerta de mi transformación"
+    },
+    {
+      "id": "n1k4qs0m",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "El cambio es la puerta de mi transformación",
+      "textF": "El cambio es la puerta de mi transformación"
+    },
+    {
+      "id": "m1gab7au",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Suelto lo viejo con gratitud y doy la bienvenida a lo nuevo con los brazos abiertos",
+      "textF": "Suelto lo viejo con gratitud y doy la bienvenida a lo nuevo con los brazos abiertos"
+    },
+    {
+      "id": "ngn9ctv",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Suelto lo viejo con gratitud y doy la bienvenida a lo nuevo con los brazos abiertos",
+      "textF": "Suelto lo viejo con gratitud y doy la bienvenida a lo nuevo con los brazos abiertos"
+    },
+    {
+      "id": "m1ovtgj7",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Tengo la fuerza y la sabiduría para navegar cualquier cambio",
+      "textF": "Tengo la fuerza y la sabiduría para navegar cualquier cambio"
+    },
+    {
+      "id": "nepmxfs",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Tengo la fuerza y la sabiduría para navegar cualquier cambio",
+      "textF": "Tengo la fuerza y la sabiduría para navegar cualquier cambio"
+    },
+    {
+      "id": "m1qqd3cq",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "La incertidumbre es el espacio donde ocurren los milagros y las revelaciones",
+      "textF": "La incertidumbre es el espacio donde ocurren los milagros y las revelaciones"
+    },
+    {
+      "id": "n110iorx",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "La incertidumbre es el espacio donde ocurren los milagros y las revelaciones",
+      "textF": "La incertidumbre es el espacio donde ocurren los milagros y las revelaciones"
+    },
+    {
+      "id": "mlsd66d",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Cada desafío que enfrento me hace más sabio y más fuerte",
+      "textF": "Cada desafío que enfrento me hace más sabio y más fuerte"
+    },
+    {
+      "id": "n1sj8zm2",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Cada desafío que enfrento me hace más sabio y más fuerte",
+      "textF": "Cada desafío que enfrento me hace más sabio y más fuerte"
+    },
+    {
+      "id": "m16j2h1q",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Fluyo con el ritmo natural de la vida",
+      "textF": "Fluyo con el ritmo natural de la vida"
+    },
+    {
+      "id": "n10istbj",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Fluyo con el ritmo natural de la vida",
+      "textF": "Fluyo con el ritmo natural de la vida"
+    },
+    {
+      "id": "m1qwyx8z",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Estoy agradecido por el milagro de este mismo día",
+      "textF": "Estoy agradecido por el milagro de este mismo día"
+    },
+    {
+      "id": "n1jwq2z6",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Estoy agradecido por el milagro de este mismo día",
+      "textF": "Estoy agradecido por el milagro de este mismo día"
+    },
+    {
+      "id": "mdvkjml",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Mi corazón rebosa de gratitud por todo lo que tengo",
+      "textF": "Mi corazón rebosa de gratitud por todo lo que tengo"
+    },
+    {
+      "id": "nhq5lbs",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Mi corazón rebosa de gratitud por todo lo que tengo",
+      "textF": "Mi corazón rebosa de gratitud por todo lo que tengo"
+    },
+    {
+      "id": "mztz8di",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Cada respiración es un regalo que no doy por sentado",
+      "textF": "Cada respiración es un regalo que no doy por sentado"
+    },
+    {
+      "id": "n17l021p",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Cada respiración es un regalo que no doy por sentado",
+      "textF": "Cada respiración es un regalo que no doy por sentado"
+    },
+    {
+      "id": "mff2pbc",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Noto y aprecio profundamente la belleza que me rodea",
+      "textF": "Noto y aprecio profundamente la belleza que me rodea"
+    },
+    {
+      "id": "nko7zfn",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Noto y aprecio profundamente la belleza que me rodea",
+      "textF": "Noto y aprecio profundamente la belleza que me rodea"
+    },
+    {
+      "id": "m1hv7076",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "La gratitud multiplica todo lo que tengo y todo lo que soy",
+      "textF": "La gratitud multiplica todo lo que tengo y todo lo que soy"
+    },
+    {
+      "id": "n1yibqn9",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "La gratitud multiplica todo lo que tengo y todo lo que soy",
+      "textF": "La gratitud multiplica todo lo que tengo y todo lo que soy"
+    },
+    {
+      "id": "m1h9kkvf",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Doy gracias por los desafíos que me hicieron más fuerte",
+      "textF": "Doy gracias por los desafíos que me hicieron más fuerte"
+    },
+    {
+      "id": "nltb02q",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Doy gracias por los desafíos que me hicieron más fuerte",
+      "textF": "Doy gracias por los desafíos que me hicieron más fuerte"
+    },
+    {
+      "id": "m137yhr2",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Soy bendecido mucho más allá de lo que puedo ver o medir",
+      "textF": "Soy bendecido mucho más allá de lo que puedo ver o medir"
+    },
+    {
+      "id": "n17r9ivt",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Soy bendecido mucho más allá de lo que puedo ver o medir",
+      "textF": "Soy bendecido mucho más allá de lo que puedo ver o medir"
+    },
+    {
+      "id": "mrf5flk",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Cuanto más aprecio, más tengo que apreciar",
+      "textF": "Cuanto más aprecio, más tengo que apreciar"
+    },
+    {
+      "id": "n1jditn3",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Cuanto más aprecio, más tengo que apreciar",
+      "textF": "Cuanto más aprecio, más tengo que apreciar"
+    },
+    {
+      "id": "m1iqs619",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Estoy rodeado de abundancia, amor y posibilidad infinita",
+      "textF": "Estoy rodeado de abundancia, amor y posibilidad infinita"
+    },
+    {
+      "id": "np4v9hy",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Estoy rodeado de abundancia, amor y posibilidad infinita",
+      "textF": "Estoy rodeado de abundancia, amor y posibilidad infinita"
+    },
+    {
+      "id": "mol6r8r",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Gracias por este día, exactamente como es",
+      "textF": "Gracias por este día, exactamente como es"
+    },
+    {
+      "id": "n159m3bi",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Gracias por este día, exactamente como es",
+      "textF": "Gracias por este día, exactamente como es"
+    },
+    {
+      "id": "m13yb1o1",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "La riqueza fluye hacia mí a través de múltiples canales",
+      "textF": "La riqueza fluye hacia mí a través de múltiples canales"
+    },
+    {
+      "id": "nxzlmko",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "La riqueza fluye hacia mí a través de múltiples canales",
+      "textF": "La riqueza fluye hacia mí a través de múltiples canales"
+    },
+    {
+      "id": "mvtgkqn",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Merezco abundancia financiera y prosperidad duradera",
+      "textF": "Merezco abundancia financiera y prosperidad duradera"
+    },
+    {
+      "id": "n1hk76fk",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Merezco abundancia financiera y prosperidad duradera",
+      "textF": "Merezco abundancia financiera y prosperidad duradera"
+    },
+    {
+      "id": "m32occ9",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Mi relación con el dinero es saludable, positiva y en crecimiento",
+      "textF": "Mi relación con el dinero es saludable, positiva y en crecimiento"
+    },
+    {
+      "id": "n1i5gva4",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Mi relación con el dinero es saludable, positiva y en crecimiento",
+      "textF": "Mi relación con el dinero es saludable, positiva y en crecimiento"
+    },
+    {
+      "id": "mc7ur3n",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Atraigo riqueza porque creo valor real para los demás",
+      "textF": "Atraigo riqueza porque creo valor real para los demás"
+    },
+    {
+      "id": "n11olvvy",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Atraigo riqueza porque creo valor real para los demás",
+      "textF": "Atraigo riqueza porque creo valor real para los demás"
+    },
+    {
+      "id": "m7rk13y",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Administro el dinero sabiamente y se multiplica",
+      "textF": "Administro el dinero sabiamente y se multiplica"
+    },
+    {
+      "id": "n1j4lop7",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Administro el dinero sabiamente y se multiplica",
+      "textF": "Administro el dinero sabiamente y se multiplica"
+    },
+    {
+      "id": "m17ucvyv",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Merezco la libertad financiera y la seguridad",
+      "textF": "Merezco la libertad financiera y la seguridad"
+    },
+    {
+      "id": "n1oqn27q",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Merezco la libertad financiera y la seguridad",
+      "textF": "Merezco la libertad financiera y la seguridad"
+    },
+    {
+      "id": "m1x0nncs",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Las oportunidades de riqueza y crecimiento me rodean cada día",
+      "textF": "Las oportunidades de riqueza y crecimiento me rodean cada día"
+    },
+    {
+      "id": "n1045s69",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Las oportunidades de riqueza y crecimiento me rodean cada día",
+      "textF": "Las oportunidades de riqueza y crecimiento me rodean cada día"
+    },
+    {
+      "id": "m1x36kwc",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "El dinero es una herramienta que me empodera para hacer más bien",
+      "textF": "El dinero es una herramienta que me empodera para hacer más bien"
+    },
+    {
+      "id": "nva77n",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "El dinero es una herramienta que me empodera para hacer más bien",
+      "textF": "El dinero es una herramienta que me empodera para hacer más bien"
+    },
+    {
+      "id": "mrqulgl",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Libero todas las creencias limitantes sobre el dinero y doy la bienvenida a la abundancia",
+      "textF": "Libero todas las creencias limitantes sobre el dinero y doy la bienvenida a la abundancia"
+    },
+    {
+      "id": "n6ghsfc",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Libero todas las creencias limitantes sobre el dinero y doy la bienvenida a la abundancia",
+      "textF": "Libero todas las creencias limitantes sobre el dinero y doy la bienvenida a la abundancia"
+    },
+    {
+      "id": "mbxsxdv",
+      "slot": "morning",
+      "kind": "affirmation",
+      "text": "Soy un imán para la prosperidad, las oportunidades y el éxito",
+      "textF": "Soy un imán para la prosperidad, las oportunidades y el éxito"
+    },
+    {
+      "id": "nqk5pba",
+      "slot": "noon",
+      "kind": "affirmation",
+      "text": "Soy un imán para la prosperidad, las oportunidades y el éxito",
+      "textF": "Soy un imán para la prosperidad, las oportunidades y el éxito"
+    },
+    {
+      "id": "e1af8dsp",
+      "slot": "evening",
+      "kind": "question",
+      "text": "¿Qué hiciste hoy en la práctica? Un paso, aunque sea pequeño, cuenta.",
+      "textF": "¿Qué hiciste hoy en la práctica? Un paso, aunque sea pequeño, cuenta."
+    }
+  ]
+}

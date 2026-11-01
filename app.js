@@ -117,13 +117,21 @@ async function loadLanguage(lang) {
 
   currentLang = lang;
   localStorage.setItem('app-language', lang);
-  try {
-    const poolRes = await fetch('./data/notification-pool.json');
-    if (poolRes.ok) {
-      const pool = await poolRes.json();
-      notificationPool = Array.isArray(pool.items) ? pool.items : [];
-    }
-  } catch {}
+  notificationPool = [];
+  if (lang === 'he') {
+    try {
+      const poolRes = await fetch('./data/notification-pool.json');
+      if (poolRes.ok) {
+        const pool = await poolRes.json();
+        notificationPool = Array.isArray(pool.items) ? pool.items : [];
+      }
+    } catch {}
+  } else if (window.NotificationSelect && affirmationsData) {
+    notificationPool = window.NotificationSelect.buildLocalizedPool(
+      affirmationsData.affirmations,
+      translations.journalDesc
+    );
+  }
 
   const isRTL = lang === 'he';
   document.documentElement.dir = isRTL ? 'rtl' : 'ltr';
@@ -139,6 +147,8 @@ async function loadLanguage(lang) {
   updateLangButtons();
   loadGeneratedContent();
   reapplyPersonalPlanIfAny();
+  syncSettingsToSW();
+  pushToCloud();
 }
 
 function applyTranslations() {
@@ -241,8 +251,7 @@ function showRandomAffirmation() {
 
   // Filter by selected category chip
   if (currentCategory === 'favorites') {
-    const favs = getFavorites();
-    pool = pool.filter(a => favs.includes(a.text));
+    pool = pool.filter(a => isFavorite(a));
   } else if (currentCategory !== 'all') {
     pool = pool.filter(a => a.category === currentCategory || a.category === 'personal');
   }
@@ -1002,11 +1011,29 @@ async function registerFcmToken() {
     const token = await window.AppAuth.getFcmToken();
     if (!token) return;
     localStorage.setItem('fcm-token', token);
-    syncSettingsToSW();
     if (cloudSyncEnabled && currentUser && window.AppAuth.saveFcmToken) {
       await window.AppAuth.saveFcmToken(currentUser.uid, token);
+      localStorage.setItem('fcm-server-uid', currentUser.uid);
     }
   } catch {}
+  syncSettingsToSW();
+}
+
+// The server sends reminders only for a signed-in user whose token was
+// actually written to Firestore. Guests and signed-out devices keep the
+// local reminder path.
+function serverPushActive() {
+  if (!window.NotificationSelect) return false;
+  return window.NotificationSelect.shouldSkipLocalReminders({
+    signedIn: !!(cloudSyncEnabled && currentUser),
+    currentUid: currentUser && currentUser.uid,
+    serverUid: localStorage.getItem('fcm-server-uid')
+  });
+}
+
+function clearServerPushConfirmation() {
+  localStorage.removeItem('fcm-server-uid');
+  syncSettingsToSW();
 }
 
 // ===== Reminder Checker (foreground fallback — the server-side FCM job is the reliable path) =====
@@ -1033,9 +1060,9 @@ function saveNotificationHistory(history) {
 
 function checkReminders() {
   if (Notification.permission !== 'granted') return;
-  // Once a push token exists, Cloud Functions is the only sender. A local
-  // notification on top of that push is the duplicate users were seeing.
-  if (localStorage.getItem('fcm-token')) return;
+  // Skip the local notification only after this device's token is confirmed
+  // on the signed-in user's server document. Otherwise the server never sends.
+  if (serverPushActive()) return;
 
   const reminders = getReminders();
   if (!reminders.length || !notificationPool.length || !window.NotificationSelect) return;
@@ -1061,7 +1088,7 @@ function checkReminders() {
       slot: window.NotificationSelect.slotForReminder(r),
       history,
       addressForm,
-      personalTexts: getPersonalAffirmations()
+      personalTexts: window.NotificationSelect.personalTextsForLanguage(getPersonalAffirmations(), currentLang)
     });
     if (!picked) return;
     history = picked.history;
@@ -1441,8 +1468,10 @@ function syncSettingsToSW() {
     navigator.serviceWorker.controller.postMessage({
       type: 'SAVE_SETTINGS',
       reminders: getReminders(),
-      fcmActive: !!localStorage.getItem('fcm-token'),
-      addressForm
+      fcmActive: serverPushActive(),
+      addressForm,
+      lang: currentLang,
+      notificationPool: currentLang === 'he' ? null : notificationPool
     });
   } catch {}
 }
@@ -1531,20 +1560,34 @@ function getFavorites() {
   try { return JSON.parse(localStorage.getItem('favorites') || '[]'); } catch { return []; }
 }
 
+function isFavorite(item) {
+  if (!window.NotificationSelect) return !!(item && getFavorites().includes(item.text));
+  return window.NotificationSelect.isFavoriteEntry(getFavorites(), item);
+}
+
+function favoriteDisplayText(entry) {
+  const list = affirmationsData && affirmationsData.affirmations;
+  if (!window.NotificationSelect) return entry;
+  return window.NotificationSelect.favoriteDisplayText(entry, list, addressForm);
+}
+
 function toggleFavorite() {
   if (!currentAffirmation) return;
-  const text = currentAffirmation.text;
-  const favs = getFavorites();
-  const idx = favs.indexOf(text);
-  if (idx === -1) {
-    favs.push(text);
+  const already = isFavorite(currentAffirmation);
+  let next = window.NotificationSelect
+    ? window.NotificationSelect.withoutFavorite(getFavorites(), currentAffirmation)
+    : getFavorites().filter((entry) => entry !== currentAffirmation.text);
+  if (!already) {
+    const key = window.NotificationSelect
+      ? window.NotificationSelect.favoriteStorageKey(currentAffirmation)
+      : currentAffirmation.text;
+    if (key) next.push(key);
     showToast(t('toastFavAdded'));
     logAnalyticsEvent('favorite_added');
   } else {
-    favs.splice(idx, 1);
     showToast(t('toastFavRemoved'));
   }
-  localStorage.setItem('favorites', JSON.stringify(favs));
+  localStorage.setItem('favorites', JSON.stringify(next));
   updateFavoriteBtn();
   updateFavoritesChip();
   pushToCloud();
@@ -1552,8 +1595,7 @@ function toggleFavorite() {
 
 function updateFavoriteBtn() {
   const btn = document.getElementById('favoriteBtn');
-  const favs = getFavorites();
-  const isFav = currentAffirmation && favs.includes(currentAffirmation.text);
+  const isFav = isFavorite(currentAffirmation);
   btn.innerHTML = isFav ? '&#9829;' : '&#9825;';
   btn.classList.toggle('active', isFav);
 }
@@ -1577,7 +1619,7 @@ function exportFavorites() {
     showToast(t('toastFavEmpty'));
     return;
   }
-  const text = t('favListTitle') + '\n\n' + favs.map((f, i) => `${i + 1}. ${f}`).join('\n');
+  const text = t('favListTitle') + '\n\n' + favs.map((f, i) => `${i + 1}. ${favoriteDisplayText(f)}`).join('\n');
   if (navigator.share) {
     navigator.share({ title: t('favShareTitle'), text });
   } else {
@@ -1900,6 +1942,8 @@ async function handleAuthChange(user) {
     signedInEl.style.display = 'none';
     isPro = false;
     updateUpgradeChipUI();
+    clearServerPushConfirmation();
+    startReminderChecker();
   }
 }
 
@@ -1941,6 +1985,10 @@ async function syncFromCloud(uid) {
       if (cloud.addressForm === 'f' || cloud.addressForm === 'm') {
         setAddressForm(cloud.addressForm, { skipCloud: true });
       }
+      const deviceToken = localStorage.getItem('fcm-token');
+      if (deviceToken && Array.isArray(cloud.fcmTokens) && cloud.fcmTokens.includes(deviceToken)) {
+        localStorage.setItem('fcm-server-uid', uid);
+      }
       syncSettingsToSW();
       startReminderChecker();
 
@@ -1972,7 +2020,8 @@ async function pushToCloud() {
       personalAffirmations: getPersonalAffirmations(),
       reminders: getReminders(),
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      addressForm: addressForm === 'f' ? 'f' : 'm'
+      addressForm: addressForm === 'f' ? 'f' : 'm',
+      language: currentLang
     });
   } catch {
     showToast(t('toastSyncError'));
@@ -1991,6 +2040,12 @@ async function handleGoogleSignIn() {
 
 async function handleGoogleSignOut() {
   if (!window.AppAuth) return;
+  const uid = currentUser && currentUser.uid;
+  const token = localStorage.getItem('fcm-token');
+  if (uid && token && window.AppAuth.removeFcmToken) {
+    try { await window.AppAuth.removeFcmToken(uid, token); } catch {}
+  }
+  clearServerPushConfirmation();
   await window.AppAuth.signOut();
   showToast(t('toastSignedOut'));
 }

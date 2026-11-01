@@ -13,6 +13,7 @@ import {
   getDoc,
   setDoc,
   arrayUnion,
+  arrayRemove,
   collection,
   query,
   orderBy,
@@ -69,6 +70,9 @@ window.AppAuth = {
   },
   saveFcmToken: async (uid, token) => {
     await setDoc(doc(db, 'users', uid), { fcmTokens: arrayUnion(token) }, { merge: true });
+  },
+  removeFcmToken: async (uid, token) => {
+    await setDoc(doc(db, 'users', uid), { fcmTokens: arrayRemove(token) }, { merge: true });
   },
   getFcmToken: async () => {
     try {
