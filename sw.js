@@ -21,12 +21,15 @@ messaging.onBackgroundMessage((payload) => {
   const title = payload.data?.title || 'אמירות חיוביות';
   const body = payload.data?.body || '';
   if (!body) return;
+  const lang = payload.data?.lang === 'en' || payload.data?.lang === 'fr' || payload.data?.lang === 'es'
+    ? payload.data.lang
+    : 'he';
   self.registration.showNotification(title, {
     body,
     icon: './assets/icon-192.png',
     badge: './assets/icon-192.png',
-    dir: 'rtl',
-    lang: 'he',
+    dir: lang === 'he' ? 'rtl' : 'ltr',
+    lang,
     tag: payload.data?.tag || 'affirmation'
   });
 });
@@ -136,6 +139,11 @@ self.addEventListener('periodicsync', (event) => {
 });
 
 async function loadNotificationPool() {
+  const lang = await getFromSettingsCache('app-lang');
+  if (lang && lang !== 'he') {
+    const localized = await getFromSettingsCache('notification-pool');
+    return Array.isArray(localized) ? localized : [];
+  }
   try {
     const cache = await caches.open(CACHE_NAME);
     const response = await cache.match('./data/notification-pool.json');
@@ -211,7 +219,9 @@ self.addEventListener('message', (event) => {
     event.waitUntil(Promise.all([
       saveToSettingsCache('reminders-list', event.data.reminders),
       saveToSettingsCache('fcm-active', !!event.data.fcmActive),
-      saveToSettingsCache('address-form', event.data.addressForm === 'f' ? 'f' : 'm')
+      saveToSettingsCache('address-form', event.data.addressForm === 'f' ? 'f' : 'm'),
+      saveToSettingsCache('app-lang', event.data.lang === 'en' || event.data.lang === 'fr' || event.data.lang === 'es' ? event.data.lang : 'he'),
+      saveToSettingsCache('notification-pool', Array.isArray(event.data.notificationPool) ? event.data.notificationPool : [])
     ]));
 
   } else if (event.data.type === 'MARK_SENT') {
@@ -234,8 +244,9 @@ self.addEventListener('message', (event) => {
 // ===== Show Notification =====
 async function showNotification(title, passedBody, tag) {
   let body = passedBody || '';
-  const dir = 'rtl';
-  const lang = 'he';
+  const storedLang = await getFromSettingsCache('app-lang');
+  const lang = storedLang === 'en' || storedLang === 'fr' || storedLang === 'es' ? storedLang : 'he';
+  const dir = lang === 'he' ? 'rtl' : 'ltr';
 
   if (!body && self.NotificationSelect) {
     try {

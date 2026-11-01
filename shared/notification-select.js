@@ -45,6 +45,162 @@
     return item.text || '';
   }
 
+  // Local reminders stay on unless this device's token was saved on the
+  // signed-in user's server document. A token that only lives in the
+  // browser belongs to a guest or a signed-out session, and the server
+  // will not send anything for them.
+  function shouldSkipLocalReminders(state) {
+    const signedIn = !!(state && state.signedIn);
+    const currentUid = state && state.currentUid;
+    const serverUid = state && state.serverUid;
+    return !!(signedIn && currentUid && serverUid && serverUid === currentUid);
+  }
+
+  const HEBREW_RE = /[\u0590-\u05FF]/;
+
+  function containsHebrew(text) {
+    return HEBREW_RE.test(String(text || ''));
+  }
+
+  // English, French, and Spanish have no separate step pool. Build morning
+  // and noon from the localized affirmations, and use the translated journal
+  // question in the evening. Hebrew lines are dropped so a non-Hebrew UI
+  // never shows them.
+  function buildLocalizedPool(affirmations, eveningText) {
+    const items = [];
+    (affirmations || []).forEach((row) => {
+      const text = row && typeof row.text === 'string' ? row.text.trim() : '';
+      if (!text || containsHebrew(text)) return;
+      items.push({
+        id: stableId('m', text),
+        slot: 'morning',
+        kind: 'affirmation',
+        text,
+        textF: text
+      });
+      items.push({
+        id: stableId('n', text),
+        slot: 'noon',
+        kind: 'affirmation',
+        text,
+        textF: text
+      });
+    });
+    const evening = typeof eveningText === 'string' ? eveningText.trim() : '';
+    if (evening && !containsHebrew(evening)) {
+      items.push({
+        id: stableId('e', evening),
+        slot: 'evening',
+        kind: 'question',
+        text: evening,
+        textF: evening
+      });
+    }
+    return items;
+  }
+
+  function personalTextsForLanguage(texts, lang) {
+    const list = (texts || []).filter((text) => typeof text === 'string' && text.trim());
+    if (lang === 'he') return list.map((text) => text.trim());
+    return list.map((text) => text.trim()).filter((text) => !containsHebrew(text));
+  }
+
+  function favoriteStorageKey(item) {
+    if (!item) return '';
+    if (item.id) return item.id;
+    return item.text || '';
+  }
+
+  function isFavoriteEntry(favorites, item) {
+    if (!item || !Array.isArray(favorites)) return false;
+    if (item.id && favorites.includes(item.id)) return true;
+    if (item.text && favorites.includes(item.text)) return true;
+    if (item.textF && favorites.includes(item.textF)) return true;
+    return false;
+  }
+
+  function withoutFavorite(favorites, item) {
+    const drop = new Set([item && item.id, item && item.text, item && item.textF].filter(Boolean));
+    return (Array.isArray(favorites) ? favorites : []).filter((entry) => !drop.has(entry));
+  }
+
+  function isBareFavoriteId(entry) {
+    return typeof entry === 'string' && /^a[0-9a-z]{4,12}$/.test(entry);
+  }
+
+  function findFavorite(entry, affirmations) {
+    const list = Array.isArray(affirmations) ? affirmations : [];
+    return list.find((item) => item && item.id === entry)
+      || list.find((item) => item && (item.text === entry || item.textF === entry))
+      || null;
+  }
+
+  // addressForm picks text or textF. fallbackAffirmations is the Hebrew
+  // catalog, used when the current UI language does not contain that id.
+  // An id that still cannot be resolved is omitted so export does not show
+  // a raw key such as "asmdeaj". A legacy sentence stored as text is kept.
+  function favoriteDisplayText(entry, affirmations, addressForm, options) {
+    const fallback = options && options.fallbackAffirmations;
+    const match = findFavorite(entry, affirmations) || findFavorite(entry, fallback);
+    if (!match) return isBareFavoriteId(entry) ? '' : entry;
+    return textFor(match, addressForm);
+  }
+
+  // Firestore map keys cannot contain dots or slashes, and FCM tokens do.
+  function tokenFieldKey(token) {
+    return stableId('t', token);
+  }
+
+  // Per-token time wins. The old user-level fcmTokenBoundAt is only a
+  // fallback for an account that still has exactly one token, so opening
+  // the app on a laptop cannot refresh a phone token that belongs to
+  // someone else.
+  function tokenBoundScore(user, token) {
+    const map = user && user.fcmTokenBound;
+    if (map && typeof map === 'object') {
+      const specific = Number(map[tokenFieldKey(token)]);
+      if (Number.isFinite(specific) && specific > 0) return specific;
+    }
+    const tokens = (user && user.fcmTokens) || [];
+    if (tokens.length === 1 && tokens[0] === token) {
+      const legacy = Number(user && user.fcmTokenBoundAt);
+      if (Number.isFinite(legacy) && legacy > 0) return legacy;
+    }
+    return 0;
+  }
+
+  // One device token can linger on an older account after someone else signs
+  // in on that phone. The newest per-token time owns it. A tie goes to the
+  // greater uid so the choice does not depend on document order.
+  function assignTokenOwners(users) {
+    const tokenOwner = new Map();
+    (users || []).forEach((user) => {
+      if (!user || !user.uid) return;
+      (user.fcmTokens || []).forEach((token) => {
+        if (!token) return;
+        const score = tokenBoundScore(user, token);
+        const current = tokenOwner.get(token);
+        if (!current || score > current.bound || (score === current.bound && String(user.uid) > current.uid)) {
+          tokenOwner.set(token, { uid: String(user.uid), bound: score });
+        }
+      });
+    });
+    return tokenOwner;
+  }
+
+  function tokensForUser(user, tokenOwner) {
+    const owned = [];
+    const stale = [];
+    const uid = user && user.uid ? String(user.uid) : '';
+    (user && user.fcmTokens || []).forEach((token) => {
+      if (!token) return;
+      const owner = tokenOwner && tokenOwner.get(token);
+      if (owner && owner.uid !== uid) stale.push(token);
+      else owned.push(token);
+    });
+    return { owned, stale };
+  }
+
   function pickFromPool(options) {
     const pool = (options && options.pool) || [];
     const slot = (options && options.slot) || 'morning';
@@ -101,6 +257,19 @@
     appendHistory,
     slotForReminder,
     pickFromPool,
-    textFor
+    textFor,
+    shouldSkipLocalReminders,
+    containsHebrew,
+    buildLocalizedPool,
+    personalTextsForLanguage,
+    favoriteStorageKey,
+    isFavoriteEntry,
+    withoutFavorite,
+    favoriteDisplayText,
+    assignTokenOwners,
+    tokensForUser,
+    tokenFieldKey,
+    tokenBoundScore,
+    isBareFavoriteId
   };
 });

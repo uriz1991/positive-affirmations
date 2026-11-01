@@ -13,6 +13,7 @@ import {
   getDoc,
   setDoc,
   arrayUnion,
+  arrayRemove,
   collection,
   query,
   orderBy,
@@ -68,7 +69,17 @@ window.AppAuth = {
     await setDoc(doc(db, 'users', uid), { ...data, updatedAt: Date.now() }, { merge: true });
   },
   saveFcmToken: async (uid, token) => {
-    await setDoc(doc(db, 'users', uid), { fcmTokens: arrayUnion(token) }, { merge: true });
+    const key = window.NotificationSelect && window.NotificationSelect.tokenFieldKey
+      ? window.NotificationSelect.tokenFieldKey(token)
+      : null;
+    const patch = { fcmTokens: arrayUnion(token) };
+    // Only this device's token gets a new time. Other tokens on the account
+    // keep the time they were saved with.
+    if (key) patch.fcmTokenBound = { [key]: Date.now() };
+    await setDoc(doc(db, 'users', uid), patch, { merge: true });
+  },
+  removeFcmToken: async (uid, token) => {
+    await setDoc(doc(db, 'users', uid), { fcmTokens: arrayRemove(token) }, { merge: true });
   },
   getFcmToken: async () => {
     try {
