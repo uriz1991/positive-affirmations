@@ -16,6 +16,10 @@ let isPro = false;
 let lastPersonalPlan = null;
 let addressForm = 'm';
 let notificationPool = [];
+// Stay quiet locally while Firebase restores a signed-in session that may
+// already have this device's token on the server. Otherwise the page can
+// notify before sync marks fcm-server-uid, and the server sends a second copy.
+let authResolved = false;
 
 // Created in Stripe Dashboard → Product catalog → your subscription product.
 const STRIPE_MONTHLY_PRICE_ID = 'price_1UAlkS5TpYQiqdPxShalBZVP';
@@ -201,7 +205,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   loadGoalData();
   renderGoalBanner();
   registerServiceWorker();
-  startReminderChecker();
   maybeShowOnboarding();
   if (window.AppAuth) {
     window.AppAuth.onChange(handleAuthChange);
@@ -210,6 +213,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       const body = payload.notification?.body || payload.data?.body || '';
       showToast(`${title}${body ? ' — ' + body : ''}`);
     });
+  } else {
+    authResolved = true;
+    startReminderChecker();
   }
   if (Notification.permission === 'granted') registerFcmToken();
 
@@ -1023,12 +1029,23 @@ async function registerFcmToken() {
 // actually written to Firestore. Guests and signed-out devices keep the
 // local reminder path.
 function serverPushActive() {
+  if (!authResolved && localStorage.getItem('fcm-token')) return true;
   if (!window.NotificationSelect) return false;
   return window.NotificationSelect.shouldSkipLocalReminders({
     signedIn: !!(cloudSyncEnabled && currentUser),
     currentUid: currentUser && currentUser.uid,
     serverUid: localStorage.getItem('fcm-server-uid')
   });
+}
+
+// Call this as soon as a user document is in hand, before the rest of sync.
+function markServerPushFromDoc(uid, data) {
+  const deviceToken = localStorage.getItem('fcm-token');
+  if (!uid || !deviceToken || !data || !Array.isArray(data.fcmTokens)) return false;
+  if (!data.fcmTokens.includes(deviceToken)) return false;
+  localStorage.setItem('fcm-server-uid', uid);
+  syncSettingsToSW();
+  return true;
 }
 
 function clearServerPushConfirmation() {
@@ -1932,7 +1949,13 @@ async function handleAuthChange(user) {
     signedInEl.style.display = '';
     document.getElementById('accountAvatar').src = user.photoURL || '';
     document.getElementById('accountName').textContent = user.displayName || user.email || '';
-    await syncFromCloud(user.uid);
+    try {
+      await syncFromCloud(user.uid);
+    } finally {
+      authResolved = true;
+      syncSettingsToSW();
+      startReminderChecker();
+    }
     if (Notification.permission === 'granted') registerFcmToken();
     await checkSubscriptionStatus();
     await maybeRedeemReferral(user);
@@ -1942,6 +1965,7 @@ async function handleAuthChange(user) {
     signedInEl.style.display = 'none';
     isPro = false;
     updateUpgradeChipUI();
+    authResolved = true;
     clearServerPushConfirmation();
     startReminderChecker();
   }
@@ -1972,6 +1996,7 @@ async function syncFromCloud(uid) {
   try {
     const cloud = await window.AppAuth.loadUserData(uid);
     if (cloud) {
+      markServerPushFromDoc(uid, cloud);
       if (cloud.goalData?.goal) {
         goalData = cloud.goalData;
         saveGoalData();
@@ -1984,10 +2009,6 @@ async function syncFromCloud(uid) {
       localStorage.setItem('reminders-list', JSON.stringify(mergeReminders(getReminders(), cloud.reminders)));
       if (cloud.addressForm === 'f' || cloud.addressForm === 'm') {
         setAddressForm(cloud.addressForm, { skipCloud: true });
-      }
-      const deviceToken = localStorage.getItem('fcm-token');
-      if (deviceToken && Array.isArray(cloud.fcmTokens) && cloud.fcmTokens.includes(deviceToken)) {
-        localStorage.setItem('fcm-server-uid', uid);
       }
       syncSettingsToSW();
       startReminderChecker();
@@ -2042,11 +2063,19 @@ async function handleGoogleSignOut() {
   if (!window.AppAuth) return;
   const uid = currentUser && currentUser.uid;
   const token = localStorage.getItem('fcm-token');
-  if (uid && token && window.AppAuth.removeFcmToken) {
-    try { await window.AppAuth.removeFcmToken(uid, token); } catch {}
-  }
+  // Drop the local confirmation first so a hung network call cannot leave
+  // the device thinking the server is still the only sender.
   clearServerPushConfirmation();
-  await window.AppAuth.signOut();
+  if (uid && token && window.AppAuth.removeFcmToken) {
+    const removal = Promise.resolve(window.AppAuth.removeFcmToken(uid, token)).catch(() => {});
+    await Promise.race([
+      removal,
+      new Promise((resolve) => setTimeout(resolve, 3000))
+    ]);
+  }
+  try {
+    await window.AppAuth.signOut();
+  } catch {}
   showToast(t('toastSignedOut'));
 }
 

@@ -69,7 +69,10 @@ window.AppAuth = {
     await setDoc(doc(db, 'users', uid), { ...data, updatedAt: Date.now() }, { merge: true });
   },
   saveFcmToken: async (uid, token) => {
-    await setDoc(doc(db, 'users', uid), { fcmTokens: arrayUnion(token) }, { merge: true });
+    await setDoc(doc(db, 'users', uid), {
+      fcmTokens: arrayUnion(token),
+      fcmTokenBoundAt: Date.now()
+    }, { merge: true });
   },
   removeFcmToken: async (uid, token) => {
     await setDoc(doc(db, 'users', uid), { fcmTokens: arrayRemove(token) }, { merge: true });

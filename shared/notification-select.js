@@ -132,6 +132,39 @@
     return textFor(match, addressForm);
   }
 
+  // One device token can linger on an older account after someone else signs
+  // in on that phone. The newest fcmTokenBoundAt owns the token. A tie goes
+  // to the greater uid so the choice does not depend on document order.
+  function assignTokenOwners(users) {
+    const tokenOwner = new Map();
+    (users || []).forEach((user) => {
+      if (!user || !user.uid) return;
+      const bound = Number(user.fcmTokenBoundAt);
+      const score = Number.isFinite(bound) ? bound : 0;
+      (user.fcmTokens || []).forEach((token) => {
+        if (!token) return;
+        const current = tokenOwner.get(token);
+        if (!current || score > current.bound || (score === current.bound && String(user.uid) > current.uid)) {
+          tokenOwner.set(token, { uid: String(user.uid), bound: score });
+        }
+      });
+    });
+    return tokenOwner;
+  }
+
+  function tokensForUser(user, tokenOwner) {
+    const owned = [];
+    const stale = [];
+    const uid = user && user.uid ? String(user.uid) : '';
+    (user && user.fcmTokens || []).forEach((token) => {
+      if (!token) return;
+      const owner = tokenOwner && tokenOwner.get(token);
+      if (owner && owner.uid !== uid) stale.push(token);
+      else owned.push(token);
+    });
+    return { owned, stale };
+  }
+
   function pickFromPool(options) {
     const pool = (options && options.pool) || [];
     const slot = (options && options.slot) || 'morning';
@@ -196,6 +229,8 @@
     favoriteStorageKey,
     isFavoriteEntry,
     withoutFavorite,
-    favoriteDisplayText
+    favoriteDisplayText,
+    assignTokenOwners,
+    tokensForUser
   };
 });

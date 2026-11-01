@@ -11,8 +11,11 @@ const {
   favoriteStorageKey,
   isFavoriteEntry,
   withoutFavorite,
-  favoriteDisplayText
+  favoriteDisplayText,
+  assignTokenOwners,
+  tokensForUser
 } = require('../shared/notification-select');
+const { localizedPoolDoc } = require('./build-localized-pools');
 const pool = require('../data/notification-pool.json').items;
 
 let failures = 0;
@@ -172,6 +175,34 @@ check('favorites keep an id and still match older text entries', () => {
   assert.strictEqual(favoriteDisplayText('אני חושב בגדול', list, 'f'), 'אני חושבת בגדול');
   assert.strictEqual(favoriteDisplayText('אני חושב בגדול', list, 'm'), 'אני חושב בגדול');
   assert.strictEqual(favoriteDisplayText('a sentence with no match', list, 'f'), 'a sentence with no match');
+});
+
+check('bundled language pools match build-localized-pools.js', () => {
+  const fs = require('fs');
+  const path = require('path');
+  for (const lang of ['en', 'fr', 'es']) {
+    const bundled = fs.readFileSync(path.join(__dirname, '../functions', `notification-pool-${lang}.json`), 'utf8');
+    const fresh = JSON.stringify(localizedPoolDoc(lang), null, 2) + '\n';
+    assert.strictEqual(bundled, fresh, lang + ' pool drifted from build-localized-pools.js');
+  }
+});
+
+check('a device token stays with the newest signed-in user', () => {
+  const owners = assignTokenOwners([
+    { uid: 'user-a', fcmTokens: ['tok-1', 'tok-a'], fcmTokenBoundAt: 100 },
+    { uid: 'user-b', fcmTokens: ['tok-1'], fcmTokenBoundAt: 200 }
+  ]);
+  const older = tokensForUser({ uid: 'user-a', fcmTokens: ['tok-1', 'tok-a'] }, owners);
+  const newer = tokensForUser({ uid: 'user-b', fcmTokens: ['tok-1'] }, owners);
+  assert.deepStrictEqual(older.stale, ['tok-1']);
+  assert.deepStrictEqual(older.owned, ['tok-a']);
+  assert.deepStrictEqual(newer.owned, ['tok-1']);
+  assert.deepStrictEqual(newer.stale, []);
+  const missingStamp = assignTokenOwners([
+    { uid: 'old', fcmTokens: ['tok-2'] },
+    { uid: 'new', fcmTokens: ['tok-2'], fcmTokenBoundAt: 5 }
+  ]);
+  assert.strictEqual(missingStamp.get('tok-2').uid, 'new');
 });
 
 check('recent history stays capped at 40', () => {

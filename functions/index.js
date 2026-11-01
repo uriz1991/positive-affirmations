@@ -46,7 +46,7 @@ const messaging = getMessaging();
 // Same picker and sentence pools as the page and the service worker.
 // Hebrew pool: scripts/integrate-affirmations.js.
 // Other languages: scripts/build-localized-pools.js.
-const { pickFromPool, slotForReminder, personalTextsForLanguage } = require('./notification-select');
+const { pickFromPool, slotForReminder, personalTextsForLanguage, assignTokenOwners, tokensForUser } = require('./notification-select');
 const NOTIFICATION_POOLS = {
   he: require('./notification-pool.json').items,
   en: require('./notification-pool-en.json').items,
@@ -79,11 +79,26 @@ function isDueNow(currentMinutes, targetTime) {
 
 exports.sendScheduledReminders = onSchedule('every 5 minutes', async () => {
   const usersSnap = await db.collection('users').get();
+  const tokenOwner = assignTokenOwners(usersSnap.docs.map((userDoc) => {
+    const data = userDoc.data();
+    return {
+      uid: userDoc.id,
+      fcmTokens: Array.isArray(data.fcmTokens) ? data.fcmTokens : [],
+      fcmTokenBoundAt: data.fcmTokenBoundAt
+    };
+  }));
 
   await Promise.all(usersSnap.docs.map(async (userDoc) => {
     const data = userDoc.data();
     const reminders = Array.isArray(data.reminders) ? data.reminders : [];
-    const tokens = Array.isArray(data.fcmTokens) ? data.fcmTokens : [];
+    const split = tokensForUser({
+      uid: userDoc.id,
+      fcmTokens: Array.isArray(data.fcmTokens) ? data.fcmTokens : []
+    }, tokenOwner);
+    if (split.stale.length) {
+      await userDoc.ref.set({ fcmTokens: FieldValue.arrayRemove(...split.stale) }, { merge: true });
+    }
+    const tokens = split.owned;
     if (!reminders.length || !tokens.length) return;
 
     const timezone = data.timezone || 'Asia/Jerusalem';
