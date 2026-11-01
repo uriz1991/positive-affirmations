@@ -208,6 +208,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   maybeShowOnboarding();
   if (window.AppAuth) {
     window.AppAuth.onChange(handleAuthChange);
+    setTimeout(() => {
+      if (authResolved) return;
+      authResolved = true;
+      syncSettingsToSW();
+      startReminderChecker();
+    }, 10000);
     window.AppAuth.onForegroundMessage((payload) => {
       const title = payload.notification?.title || payload.data?.title || '';
       const body = payload.notification?.body || payload.data?.body || '';
@@ -1582,10 +1588,26 @@ function isFavorite(item) {
   return window.NotificationSelect.isFavoriteEntry(getFavorites(), item);
 }
 
-function favoriteDisplayText(entry) {
+function favoriteDisplayText(entry, fallbackAffirmations) {
   const list = affirmationsData && affirmationsData.affirmations;
   if (!window.NotificationSelect) return entry;
-  return window.NotificationSelect.favoriteDisplayText(entry, list, addressForm);
+  return window.NotificationSelect.favoriteDisplayText(entry, list, addressForm, {
+    fallbackAffirmations
+  });
+}
+
+async function hebrewAffirmationsForExport() {
+  if (currentLang === 'he') return (affirmationsData && affirmationsData.affirmations) || [];
+  if (Array.isArray(window.__hebrewAffirmations)) return window.__hebrewAffirmations;
+  try {
+    const res = await fetch('./data/affirmations.json');
+    if (!res.ok) return [];
+    const data = await res.json();
+    window.__hebrewAffirmations = Array.isArray(data.affirmations) ? data.affirmations : [];
+    return window.__hebrewAffirmations;
+  } catch {
+    return [];
+  }
 }
 
 function toggleFavorite() {
@@ -1630,13 +1652,19 @@ function updateFavoritesChip() {
   }
 }
 
-function exportFavorites() {
+async function exportFavorites() {
   const favs = getFavorites();
   if (favs.length === 0) {
     showToast(t('toastFavEmpty'));
     return;
   }
-  const text = t('favListTitle') + '\n\n' + favs.map((f, i) => `${i + 1}. ${favoriteDisplayText(f)}`).join('\n');
+  const fallback = await hebrewAffirmationsForExport();
+  const lines = favs.map((entry) => favoriteDisplayText(entry, fallback)).filter(Boolean);
+  if (!lines.length) {
+    showToast(t('toastFavEmpty'));
+    return;
+  }
+  const text = t('favListTitle') + '\n\n' + lines.map((line, i) => `${i + 1}. ${line}`).join('\n');
   if (navigator.share) {
     navigator.share({ title: t('favShareTitle'), text });
   } else {

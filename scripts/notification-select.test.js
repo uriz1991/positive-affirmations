@@ -13,7 +13,8 @@ const {
   withoutFavorite,
   favoriteDisplayText,
   assignTokenOwners,
-  tokensForUser
+  tokensForUser,
+  tokenFieldKey
 } = require('../shared/notification-select');
 const { localizedPoolDoc } = require('./build-localized-pools');
 const pool = require('../data/notification-pool.json').items;
@@ -175,6 +176,17 @@ check('favorites keep an id and still match older text entries', () => {
   assert.strictEqual(favoriteDisplayText('אני חושב בגדול', list, 'f'), 'אני חושבת בגדול');
   assert.strictEqual(favoriteDisplayText('אני חושב בגדול', list, 'm'), 'אני חושב בגדול');
   assert.strictEqual(favoriteDisplayText('a sentence with no match', list, 'f'), 'a sentence with no match');
+  const hebrew = [{ id: 'asmdeaj', text: 'אני סומך על התהליך', textF: 'אני סומכת על התהליך' }];
+  const english = [{ id: 'en1', text: 'I trust the process' }];
+  assert.strictEqual(
+    favoriteDisplayText('asmdeaj', english, 'm', { fallbackAffirmations: hebrew }),
+    'אני סומך על התהליך'
+  );
+  assert.strictEqual(
+    favoriteDisplayText('asmdeaj', english, 'f', { fallbackAffirmations: hebrew }),
+    'אני סומכת על התהליך'
+  );
+  assert.strictEqual(favoriteDisplayText('asmdeaj', english, 'm'), '');
 });
 
 check('bundled language pools match build-localized-pools.js', () => {
@@ -188,21 +200,40 @@ check('bundled language pools match build-localized-pools.js', () => {
 });
 
 check('a device token stays with the newest signed-in user', () => {
+  const phone = 'phone-token';
+  const laptop = 'laptop-token';
+  const phoneKey = tokenFieldKey(phone);
+  const laptopKey = tokenFieldKey(laptop);
   const owners = assignTokenOwners([
-    { uid: 'user-a', fcmTokens: ['tok-1', 'tok-a'], fcmTokenBoundAt: 100 },
-    { uid: 'user-b', fcmTokens: ['tok-1'], fcmTokenBoundAt: 200 }
+    {
+      uid: 'user-a',
+      fcmTokens: [phone, laptop],
+      fcmTokenBoundAt: 900,
+      fcmTokenBound: { [laptopKey]: 1000 }
+    },
+    {
+      uid: 'user-b',
+      fcmTokens: [phone],
+      fcmTokenBound: { [phoneKey]: 400 }
+    }
   ]);
-  const older = tokensForUser({ uid: 'user-a', fcmTokens: ['tok-1', 'tok-a'] }, owners);
-  const newer = tokensForUser({ uid: 'user-b', fcmTokens: ['tok-1'] }, owners);
-  assert.deepStrictEqual(older.stale, ['tok-1']);
-  assert.deepStrictEqual(older.owned, ['tok-a']);
-  assert.deepStrictEqual(newer.owned, ['tok-1']);
-  assert.deepStrictEqual(newer.stale, []);
-  const missingStamp = assignTokenOwners([
-    { uid: 'old', fcmTokens: ['tok-2'] },
-    { uid: 'new', fcmTokens: ['tok-2'], fcmTokenBoundAt: 5 }
+  assert.strictEqual(owners.get(phone).uid, 'user-b');
+  assert.strictEqual(owners.get(laptop).uid, 'user-a');
+  const splitA = tokensForUser({ uid: 'user-a', fcmTokens: [phone, laptop] }, owners);
+  assert.deepStrictEqual(splitA.stale, [phone]);
+  assert.deepStrictEqual(splitA.owned, [laptop]);
+
+  const legacySingle = assignTokenOwners([
+    { uid: 'old', fcmTokens: ['only'], fcmTokenBoundAt: 10 },
+    { uid: 'older', fcmTokens: ['only'], fcmTokenBoundAt: 5 }
   ]);
-  assert.strictEqual(missingStamp.get('tok-2').uid, 'new');
+  assert.strictEqual(legacySingle.get('only').uid, 'old');
+
+  const laptopRefresh = assignTokenOwners([
+    { uid: 'user-a', fcmTokens: [phone, laptop], fcmTokenBoundAt: 900 },
+    { uid: 'user-b', fcmTokens: [phone], fcmTokenBoundAt: 200 }
+  ]);
+  assert.strictEqual(laptopRefresh.get(phone).uid, 'user-b');
 });
 
 check('recent history stays capped at 40', () => {

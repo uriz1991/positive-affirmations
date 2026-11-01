@@ -67,6 +67,25 @@ function reminderLanguage(data) {
   return lang === 'en' || lang === 'fr' || lang === 'es' ? lang : 'he';
 }
 
+function userTokenRecord(userDoc) {
+  const data = userDoc.data() || {};
+  return {
+    uid: userDoc.id,
+    fcmTokens: Array.isArray(data.fcmTokens) ? data.fcmTokens : [],
+    fcmTokenBoundAt: data.fcmTokenBoundAt,
+    fcmTokenBound: data.fcmTokenBound && typeof data.fcmTokenBound === 'object' ? data.fcmTokenBound : null
+  };
+}
+
+async function dropStaleFcmTokens(userDoc, stale) {
+  if (!stale || !stale.length) return;
+  try {
+    await userDoc.ref.set({ fcmTokens: FieldValue.arrayRemove(...stale) }, { merge: true });
+  } catch (err) {
+    logger.error('Failed to drop stale FCM tokens', { uid: userDoc.id, message: err && err.message });
+  }
+}
+
 // A reminder fires once per day, within a window after its set time (the
 // scheduler runs every 5 min, so a 6-min window guarantees each reminder is
 // caught exactly once even if a run is briefly delayed).
@@ -79,25 +98,13 @@ function isDueNow(currentMinutes, targetTime) {
 
 exports.sendScheduledReminders = onSchedule('every 5 minutes', async () => {
   const usersSnap = await db.collection('users').get();
-  const tokenOwner = assignTokenOwners(usersSnap.docs.map((userDoc) => {
-    const data = userDoc.data();
-    return {
-      uid: userDoc.id,
-      fcmTokens: Array.isArray(data.fcmTokens) ? data.fcmTokens : [],
-      fcmTokenBoundAt: data.fcmTokenBoundAt
-    };
-  }));
+  const tokenOwner = assignTokenOwners(usersSnap.docs.map(userTokenRecord));
 
   await Promise.all(usersSnap.docs.map(async (userDoc) => {
     const data = userDoc.data();
     const reminders = Array.isArray(data.reminders) ? data.reminders : [];
-    const split = tokensForUser({
-      uid: userDoc.id,
-      fcmTokens: Array.isArray(data.fcmTokens) ? data.fcmTokens : []
-    }, tokenOwner);
-    if (split.stale.length) {
-      await userDoc.ref.set({ fcmTokens: FieldValue.arrayRemove(...split.stale) }, { merge: true });
-    }
+    const split = tokensForUser(userTokenRecord(userDoc), tokenOwner);
+    await dropStaleFcmTokens(userDoc, split.stale);
     const tokens = split.owned;
     if (!reminders.length || !tokens.length) return;
 
@@ -522,6 +529,7 @@ exports.sendWeeklyCoachInsight = onSchedule({
   secrets: [geminiApiKey]
 }, async () => {
   const usersSnap = await db.collection('users').get();
+  const tokenOwner = assignTokenOwners(usersSnap.docs.map(userTokenRecord));
   const genAI = new GoogleGenerativeAI(secretValue(geminiApiKey));
   const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
 
@@ -593,7 +601,9 @@ exports.sendWeeklyCoachInsight = onSchedule({
         }
       }, { merge: true });
 
-      const tokens = Array.isArray(data.fcmTokens) ? data.fcmTokens : [];
+      const split = tokensForUser(userTokenRecord(userDoc), tokenOwner);
+      await dropStaleFcmTokens(userDoc, split.stale);
+      const tokens = split.owned;
       if (tokens.length && (parsed.challenge || parsed.insight)) {
         await messaging.sendEachForMulticast({
           tokens,

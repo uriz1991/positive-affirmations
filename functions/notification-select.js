@@ -124,25 +124,61 @@
     return (Array.isArray(favorites) ? favorites : []).filter((entry) => !drop.has(entry));
   }
 
-  function favoriteDisplayText(entry, affirmations, addressForm) {
+  function isBareFavoriteId(entry) {
+    return typeof entry === 'string' && /^a[0-9a-z]{4,12}$/.test(entry);
+  }
+
+  function findFavorite(entry, affirmations) {
     const list = Array.isArray(affirmations) ? affirmations : [];
-    const match = list.find((item) => item && item.id === entry)
-      || list.find((item) => item && (item.text === entry || item.textF === entry));
-    if (!match) return entry;
+    return list.find((item) => item && item.id === entry)
+      || list.find((item) => item && (item.text === entry || item.textF === entry))
+      || null;
+  }
+
+  // addressForm picks text or textF. fallbackAffirmations is the Hebrew
+  // catalog, used when the current UI language does not contain that id.
+  // An id that still cannot be resolved is omitted so export does not show
+  // a raw key such as "asmdeaj". A legacy sentence stored as text is kept.
+  function favoriteDisplayText(entry, affirmations, addressForm, options) {
+    const fallback = options && options.fallbackAffirmations;
+    const match = findFavorite(entry, affirmations) || findFavorite(entry, fallback);
+    if (!match) return isBareFavoriteId(entry) ? '' : entry;
     return textFor(match, addressForm);
   }
 
+  // Firestore map keys cannot contain dots or slashes, and FCM tokens do.
+  function tokenFieldKey(token) {
+    return stableId('t', token);
+  }
+
+  // Per-token time wins. The old user-level fcmTokenBoundAt is only a
+  // fallback for an account that still has exactly one token, so opening
+  // the app on a laptop cannot refresh a phone token that belongs to
+  // someone else.
+  function tokenBoundScore(user, token) {
+    const map = user && user.fcmTokenBound;
+    if (map && typeof map === 'object') {
+      const specific = Number(map[tokenFieldKey(token)]);
+      if (Number.isFinite(specific) && specific > 0) return specific;
+    }
+    const tokens = (user && user.fcmTokens) || [];
+    if (tokens.length === 1 && tokens[0] === token) {
+      const legacy = Number(user && user.fcmTokenBoundAt);
+      if (Number.isFinite(legacy) && legacy > 0) return legacy;
+    }
+    return 0;
+  }
+
   // One device token can linger on an older account after someone else signs
-  // in on that phone. The newest fcmTokenBoundAt owns the token. A tie goes
-  // to the greater uid so the choice does not depend on document order.
+  // in on that phone. The newest per-token time owns it. A tie goes to the
+  // greater uid so the choice does not depend on document order.
   function assignTokenOwners(users) {
     const tokenOwner = new Map();
     (users || []).forEach((user) => {
       if (!user || !user.uid) return;
-      const bound = Number(user.fcmTokenBoundAt);
-      const score = Number.isFinite(bound) ? bound : 0;
       (user.fcmTokens || []).forEach((token) => {
         if (!token) return;
+        const score = tokenBoundScore(user, token);
         const current = tokenOwner.get(token);
         if (!current || score > current.bound || (score === current.bound && String(user.uid) > current.uid)) {
           tokenOwner.set(token, { uid: String(user.uid), bound: score });
@@ -231,6 +267,9 @@
     withoutFavorite,
     favoriteDisplayText,
     assignTokenOwners,
-    tokensForUser
+    tokensForUser,
+    tokenFieldKey,
+    tokenBoundScore,
+    isBareFavoriteId
   };
 });
