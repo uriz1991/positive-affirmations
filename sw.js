@@ -1,5 +1,6 @@
 importScripts('https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js');
+importScripts('shared/notification-select.js');
 
 firebase.initializeApp({
   apiKey: 'AIzaSyC0AFO8gOk1VizEGnuQBBaoEX6ddH-qyek',
@@ -14,14 +15,19 @@ const messaging = firebase.messaging();
 
 // Fires when a push arrives while the app is fully closed / backgrounded
 messaging.onBackgroundMessage((payload) => {
-  const title = payload.notification?.title || payload.data?.title || 'אמירות חיוביות';
-  const body = payload.notification?.body || payload.data?.body || '';
+  // A message that already has a notification field is shown by the browser.
+  // Calling showNotification here as well is the duplicate.
+  if (payload.notification) return;
+  const title = payload.data?.title || 'אמירות חיוביות';
+  const body = payload.data?.body || '';
+  if (!body) return;
   self.registration.showNotification(title, {
     body,
     icon: './assets/icon-192.png',
     badge: './assets/icon-192.png',
     dir: 'rtl',
-    lang: 'he'
+    lang: 'he',
+    tag: payload.data?.tag || 'affirmation'
   });
 });
 
@@ -45,6 +51,8 @@ const ASSETS = [
   './locales/en.json',
   './locales/fr.json',
   './locales/es.json',
+  './shared/notification-select.js',
+  './data/notification-pool.json',
   './assets/icon-192.png',
   './assets/icon-512.png'
 ];
@@ -127,13 +135,34 @@ self.addEventListener('periodicsync', (event) => {
   }
 });
 
+async function loadNotificationPool() {
+  try {
+    const cache = await caches.open(CACHE_NAME);
+    const response = await cache.match('./data/notification-pool.json');
+    if (!response) return [];
+    const data = await response.json();
+    return Array.isArray(data.items) ? data.items : [];
+  } catch {
+    return [];
+  }
+}
+
 async function checkAndNotifyFromBackground() {
+  // Push is already delivered by Cloud Functions when a token is registered.
+  if (await getFromSettingsCache('fcm-active')) return;
+
   const reminders = await getFromSettingsCache('reminders-list');
   if (!Array.isArray(reminders) || !reminders.length) return;
+  if (!self.NotificationSelect) return;
+  const pool = await loadNotificationPool();
+  if (!pool.length) return;
 
   const now = new Date();
   const today = now.toDateString();
   const currentMinutes = now.getHours() * 60 + now.getMinutes();
+  const addressForm = (await getFromSettingsCache('address-form')) === 'f' ? 'f' : 'm';
+  let history = await getFromSettingsCache('notification-recent-ids');
+  if (!Array.isArray(history)) history = [];
 
   const sentKey = 'reminders-sent-' + today;
   const sent = (await getFromSettingsCache(sentKey)) || {};
@@ -152,7 +181,15 @@ async function checkAndNotifyFromBackground() {
     // at browser discretion, not on the minute) — never for times long past,
     // or every overdue reminder bursts out together in one sync.
     if (diff >= 0 && diff <= 30) {
-      await showNotification(r.label);
+      const picked = self.NotificationSelect.pickFromPool({
+        pool,
+        slot: self.NotificationSelect.slotForReminder(r),
+        history,
+        addressForm
+      });
+      if (!picked) continue;
+      history = picked.history;
+      await showNotification(r.label, picked.text, 'reminder-' + r.id + '-' + today);
       sent[r.id] = true;
       updated = true;
     }
@@ -160,17 +197,22 @@ async function checkAndNotifyFromBackground() {
 
   if (updated) {
     await saveToSettingsCache(sentKey, sent);
+    await saveToSettingsCache('notification-recent-ids', history);
   }
 }
 
 // ===== Messages from main app =====
 self.addEventListener('message', (event) => {
   if (event.data.type === 'SHOW_NOTIFICATION') {
-    event.waitUntil(showNotification(event.data.title, event.data.body));
+    event.waitUntil(showNotification(event.data.title, event.data.body, event.data.tag));
 
   } else if (event.data.type === 'SAVE_SETTINGS') {
     // App saves settings → also mirror to Cache Storage so SW can read them
-    event.waitUntil(saveToSettingsCache('reminders-list', event.data.reminders));
+    event.waitUntil(Promise.all([
+      saveToSettingsCache('reminders-list', event.data.reminders),
+      saveToSettingsCache('fcm-active', !!event.data.fcmActive),
+      saveToSettingsCache('address-form', event.data.addressForm === 'f' ? 'f' : 'm')
+    ]));
 
   } else if (event.data.type === 'MARK_SENT') {
     // Main app sent a notification → mark in Cache Storage to avoid SW duplicate
@@ -190,36 +232,44 @@ self.addEventListener('message', (event) => {
 });
 
 // ===== Show Notification =====
-async function showNotification(title, passedBody) {
+async function showNotification(title, passedBody, tag) {
   let body = passedBody || '';
-  let dir = 'rtl';
-  let lang = 'he';
+  const dir = 'rtl';
+  const lang = 'he';
 
-  if (!body) {
-    // Fallback: pick random affirmation from cached data
+  if (!body && self.NotificationSelect) {
     try {
-      const cache = await caches.open(CACHE_NAME);
-      const response = await cache.match('./data/affirmations.json');
-      if (response) {
-        const data = await response.json();
-        const random = data.affirmations[Math.floor(Math.random() * data.affirmations.length)];
-        body = random.text;
+      const pool = await loadNotificationPool();
+      const addressForm = (await getFromSettingsCache('address-form')) === 'f' ? 'f' : 'm';
+      let history = await getFromSettingsCache('notification-recent-ids');
+      if (!Array.isArray(history)) history = [];
+      const picked = self.NotificationSelect.pickFromPool({
+        pool,
+        slot: 'morning',
+        history,
+        addressForm,
+        personalRate: 0
+      });
+      if (picked) {
+        body = picked.text;
+        await saveToSettingsCache('notification-recent-ids', picked.history);
       }
     } catch {}
   }
 
+  const options = {
+    body: body || '',
+    icon: './assets/icon-192.png',
+    badge: './assets/icon-192.png',
+    dir,
+    lang,
+    tag: tag || ('affirmation-' + title),
+    renotify: false
+  };
   try {
-    await self.registration.showNotification(title, {
-      body: body || '',
-      icon: './assets/icon-192.png',
-      badge: './assets/icon-192.png',
-      dir,
-      lang,
-      tag: 'affirmation-' + title,
-      renotify: true
-    });
+    await self.registration.showNotification(title, options);
   } catch (e) {
-    await self.registration.showNotification(title, { body: body || '' });
+    await self.registration.showNotification(title, { body: body || '', tag: options.tag });
   }
 }
 

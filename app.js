@@ -14,6 +14,8 @@ let currentUser = null;
 let cloudSyncEnabled = false;
 let isPro = false;
 let lastPersonalPlan = null;
+let addressForm = 'm';
+let notificationPool = [];
 
 // Created in Stripe Dashboard → Product catalog → your subscription product.
 const STRIPE_MONTHLY_PRICE_ID = 'price_1UAlkS5TpYQiqdPxShalBZVP';
@@ -47,7 +49,50 @@ const GOAL_EXTRA_PATTERNS = {
 
 // ===== i18n =====
 function t(key) {
-  return translations[key] || key;
+  if (addressForm === 'f' && Object.prototype.hasOwnProperty.call(translations, key + '_f')) {
+    const female = translations[key + '_f'];
+    if (female !== undefined && female !== null && female !== '') return female;
+  }
+  if (Object.prototype.hasOwnProperty.call(translations, key)) return translations[key];
+  return key;
+}
+
+function loadAddressForm() {
+  addressForm = localStorage.getItem('address-form') === 'f' ? 'f' : 'm';
+  updateAddressFormButtons();
+}
+
+function setAddressForm(form, options = {}) {
+  addressForm = form === 'f' ? 'f' : 'm';
+  localStorage.setItem('address-form', addressForm);
+  updateAddressFormButtons();
+  applyTranslations();
+  refreshCurrentAffirmationText();
+  renderTodayStep();
+  syncSettingsToSW();
+  if (!options.skipCloud) pushToCloud();
+}
+
+function updateAddressFormButtons() {
+  const male = document.getElementById('addressFormMaleBtn');
+  const female = document.getElementById('addressFormFemaleBtn');
+  if (male) male.classList.toggle('active', addressForm !== 'f');
+  if (female) female.classList.toggle('active', addressForm === 'f');
+}
+
+function affirmationText(item) {
+  if (!item) return '';
+  if (addressForm === 'f' && item.textF) return item.textF;
+  return item.text || '';
+}
+
+function refreshCurrentAffirmationText() {
+  if (!currentAffirmation) return;
+  const text = affirmationText(currentAffirmation);
+  const textEl = document.getElementById('affirmationText');
+  if (textEl) textEl.textContent = text;
+  const cameraAff = document.getElementById('cameraAffirmation');
+  if (cameraAff) cameraAff.textContent = text;
 }
 
 async function loadLanguage(lang) {
@@ -72,6 +117,13 @@ async function loadLanguage(lang) {
 
   currentLang = lang;
   localStorage.setItem('app-language', lang);
+  try {
+    const poolRes = await fetch('./data/notification-pool.json');
+    if (poolRes.ok) {
+      const pool = await poolRes.json();
+      notificationPool = Array.isArray(pool.items) ? pool.items : [];
+    }
+  } catch {}
 
   const isRTL = lang === 'he';
   document.documentElement.dir = isRTL ? 'rtl' : 'ltr';
@@ -92,15 +144,21 @@ async function loadLanguage(lang) {
 function applyTranslations() {
   document.querySelectorAll('[data-i18n]').forEach(el => {
     const key = el.dataset.i18n;
-    if (key && translations[key]) el.textContent = translations[key];
+    if (!key) return;
+    const value = t(key);
+    if (typeof value === 'string' && value !== key) el.textContent = value;
   });
   document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
     const key = el.dataset.i18nPlaceholder;
-    if (key && translations[key]) el.placeholder = translations[key];
+    if (!key) return;
+    const value = t(key);
+    if (typeof value === 'string' && value !== key) el.placeholder = value;
   });
   document.querySelectorAll('[data-i18n-aria]').forEach(el => {
     const key = el.dataset.i18nAria;
-    if (key && translations[key]) el.setAttribute('aria-label', translations[key]);
+    if (!key) return;
+    const value = t(key);
+    if (typeof value === 'string' && value !== key) el.setAttribute('aria-label', value);
   });
 }
 
@@ -118,6 +176,7 @@ function updateOfflineIndicator() {
 // ===== Initialize =====
 document.addEventListener('DOMContentLoaded', async () => {
   setupEventListeners();
+  loadAddressForm();
   const savedLang = localStorage.getItem('app-language') || 'he';
   await loadLanguage(savedLang);
   loadTheme();
@@ -199,12 +258,13 @@ function showRandomAffirmation() {
   } while (next === currentAffirmation && pool.length > 1);
 
   currentAffirmation = next;
+  renderTodayStep();
 
   // Animate transition
   textEl.classList.add('fade-out');
 
   setTimeout(() => {
-    textEl.textContent = next.text;
+    textEl.textContent = affirmationText(next);
     const categoryName = next.category === 'personal'
       ? t('personalItem')
       : (affirmationsData.categories[next.category] || next.category);
@@ -221,7 +281,7 @@ function showRandomAffirmation() {
   // Update camera overlay too
   const cameraAffirmation = document.getElementById('cameraAffirmation');
   if (cameraAffirmation) {
-    cameraAffirmation.textContent = next.text;
+    cameraAffirmation.textContent = affirmationText(next);
   }
 
   setTimeout(updateFavoriteBtn, 350); // after animation
@@ -358,7 +418,7 @@ function setupEventListeners() {
   // Camera next affirmation
   document.getElementById('cameraNextBtn').addEventListener('click', () => {
     showRandomAffirmation();
-    document.getElementById('cameraAffirmation').textContent = currentAffirmation.text;
+    document.getElementById('cameraAffirmation').textContent = affirmationText(currentAffirmation);
   });
 
   // Save the current camera affirmation straight to the belief journal
@@ -439,6 +499,8 @@ function setupEventListeners() {
   // Theme toggle
   document.getElementById('themeLightBtn').addEventListener('click', () => setTheme('light'));
   document.getElementById('themeDarkBtn').addEventListener('click', () => setTheme('dark'));
+  document.getElementById('addressFormMaleBtn').addEventListener('click', () => setAddressForm('m'));
+  document.getElementById('addressFormFemaleBtn').addEventListener('click', () => setAddressForm('f'));
   document.getElementById('homeModeMinimalBtn').addEventListener('click', () => setHomeMode('minimal'));
   document.getElementById('homeModeFullBtn').addEventListener('click', () => setHomeMode('full'));
   document.getElementById('moreActionsBtn').addEventListener('click', () => {
@@ -565,7 +627,7 @@ async function openCamera() {
     video.srcObject = stream;
     document.getElementById('cameraSection').classList.add('active');
     const cameraAff = document.getElementById('cameraAffirmation');
-    cameraAff.textContent = currentAffirmation.text;
+    cameraAff.textContent = affirmationText(currentAffirmation);
     startCameraCountdown();
     localStorage.setItem('camera-last-opened', Date.now().toString());
   } catch (err) {
@@ -629,7 +691,7 @@ const TTS_LANG_MAP = { he: 'he-IL', en: 'en-US', fr: 'fr-FR', es: 'es-ES' };
 function speakCurrentAffirmation() {
   if (!('speechSynthesis' in window) || !currentAffirmation) return;
   window.speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(currentAffirmation.text);
+  const utterance = new SpeechSynthesisUtterance(affirmationText(currentAffirmation));
   utterance.lang = TTS_LANG_MAP[currentLang] || 'he-IL';
   window.speechSynthesis.speak(utterance);
   logAnalyticsEvent('tts_played');
@@ -655,7 +717,7 @@ function generateAffirmationImageCard() {
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, W, H);
 
-  const text = currentAffirmation ? currentAffirmation.text : '';
+  const text = currentAffirmation ? affirmationText(currentAffirmation) : '';
   ctx.direction = currentLang === 'he' ? 'rtl' : 'ltr';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
@@ -701,7 +763,7 @@ function downloadBlob(blob, filename) {
 }
 
 async function shareAffirmation() {
-  const text = currentAffirmation.text;
+  const text = affirmationText(currentAffirmation);
   const appUrl = 'https://uriz1991.github.io/positive-affirmations/';
   const shareText = `"${text}"\n\n${t('shareText')} 👉 ${appUrl}`;
 
@@ -940,6 +1002,7 @@ async function registerFcmToken() {
     const token = await window.AppAuth.getFcmToken();
     if (!token) return;
     localStorage.setItem('fcm-token', token);
+    syncSettingsToSW();
     if (cloudSyncEnabled && currentUser && window.AppAuth.saveFcmToken) {
       await window.AppAuth.saveFcmToken(currentUser.uid, token);
     }
@@ -955,11 +1018,27 @@ function startReminderChecker() {
   reminderInterval = setInterval(checkReminders, 30000);
 }
 
+function getNotificationHistory() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem('notification-recent-ids') || '[]');
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveNotificationHistory(history) {
+  localStorage.setItem('notification-recent-ids', JSON.stringify((history || []).slice(-40)));
+}
+
 function checkReminders() {
   if (Notification.permission !== 'granted') return;
+  // Once a push token exists, Cloud Functions is the only sender. A local
+  // notification on top of that push is the duplicate users were seeing.
+  if (localStorage.getItem('fcm-token')) return;
 
   const reminders = getReminders();
-  if (!reminders.length) return;
+  if (!reminders.length || !notificationPool.length || !window.NotificationSelect) return;
 
   const now = new Date();
   const currentTime = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
@@ -974,15 +1053,23 @@ function checkReminders() {
     sent = { _date: today };
   }
 
+  let history = getNotificationHistory();
   reminders.forEach(r => {
-    if (!r.enabled) return;
-    if (sent[r.id]) return;
-    if (isTimeMatch(currentTime, r.time)) {
-      sendNotification(r.label, r.id);
-      sent[r.id] = true;
-      localStorage.setItem('reminders-sent', JSON.stringify(sent));
-    }
+    if (!r.enabled || sent[r.id] || !isTimeMatch(currentTime, r.time)) return;
+    const picked = window.NotificationSelect.pickFromPool({
+      pool: notificationPool,
+      slot: window.NotificationSelect.slotForReminder(r),
+      history,
+      addressForm,
+      personalTexts: getPersonalAffirmations()
+    });
+    if (!picked) return;
+    history = picked.history;
+    sendNotification(r.label, r.id, picked.text);
+    sent[r.id] = true;
+    localStorage.setItem('reminders-sent', JSON.stringify(sent));
   });
+  saveNotificationHistory(history);
 }
 
 function isTimeMatch(current, target) {
@@ -993,34 +1080,23 @@ function isTimeMatch(current, target) {
   return currentMinutes === targetMinutes || currentMinutes === targetMinutes + 1;
 }
 
-// Same priority as the server-side FCM path: personal affirmation, then
-// today's unfinished goal step, then an active AI Coach line, else whatever
-// is currently on screen.
-function pickClientNotificationBody() {
-  const personal = getPersonalAffirmations().filter(Boolean);
-  if (personal.length) return personal[Math.floor(Math.random() * personal.length)];
-
-  const nextStep = (goalData.steps || []).find((s) => !s.done);
-  if (nextStep?.text) return nextStep.text;
-
-  if (isPro && lastPersonalPlan?.affirmations?.length) {
-    const arr = lastPersonalPlan.affirmations;
-    return arr[Math.floor(Math.random() * arr.length)];
-  }
-
-  return currentAffirmation ? currentAffirmation.text : '';
-}
-
-function sendNotification(title, reminderId) {
-  const body = pickClientNotificationBody();
+function sendNotification(title, reminderId, body) {
+  const text = body || '';
+  const tag = 'reminder-' + (reminderId || 'local') + '-' + new Date().toDateString();
   if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-    navigator.serviceWorker.controller.postMessage({ type: 'SHOW_NOTIFICATION', title, body });
+    navigator.serviceWorker.controller.postMessage({
+      type: 'SHOW_NOTIFICATION',
+      title,
+      body: text,
+      tag
+    });
     if (reminderId) {
       navigator.serviceWorker.controller.postMessage({ type: 'MARK_SENT', period: reminderId });
     }
-  } else {
+  } else if (text) {
     new Notification(title, {
-      body,
+      body: text,
+      tag,
       dir: currentLang === 'he' ? 'rtl' : 'ltr',
       lang: currentLang
     });
@@ -1364,7 +1440,9 @@ function syncSettingsToSW() {
   try {
     navigator.serviceWorker.controller.postMessage({
       type: 'SAVE_SETTINGS',
-      reminders: getReminders()
+      reminders: getReminders(),
+      fcmActive: !!localStorage.getItem('fcm-token'),
+      addressForm
     });
   } catch {}
 }
@@ -1580,13 +1658,21 @@ function saveGoalData() {
 function generateGoalSteps(goalText) {
   let base = t('goalStepsBase');
   if (!Array.isArray(base) || base.length < 5) {
-    base = [
-      'תגדיר לעצמך בבירור איך זה נראה כשהיעד הזה כבר הושג',
-      'דמיין את זה כל יום למשך דקה - כאילו זה כבר קרה',
-      'מצא את הצעד הקטן ביותר שאתה יכול לעשות היום',
-      'שים לב לכל רגע אמונה בדרך ותעד אותו',
-      'סקור את ההתקדמות שלך פעם בשבוע ותחדש מחויבות'
-    ];
+    base = addressForm === 'f'
+      ? [
+        'תגדירי לעצמך בבירור איך זה נראה כשהיעד הזה כבר הושג',
+        'דמייני את זה כל יום למשך דקה - כאילו זה כבר קרה',
+        'מצאי את הצעד הקטן ביותר שאת יכולה לעשות היום',
+        'שימי לב לכל רגע אמונה בדרך ותעדי אותו',
+        'סקרי את ההתקדמות שלך פעם בשבוע ותחדשי מחויבות'
+      ]
+      : [
+        'תגדיר לעצמך בבירור איך זה נראה כשהיעד הזה כבר הושג',
+        'דמיין את זה כל יום למשך דקה - כאילו זה כבר קרה',
+        'מצא את הצעד הקטן ביותר שאתה יכול לעשות היום',
+        'שים לב לכל רגע אמונה בדרך ותעד אותו',
+        'סקור את ההתקדמות שלך פעם בשבוע ותחדש מחויבות'
+      ];
   }
 
   const patterns = GOAL_EXTRA_PATTERNS[currentLang] || GOAL_EXTRA_PATTERNS.he;
@@ -1647,23 +1733,39 @@ function renderGoalBanner() {
   renderTodayStep();
 }
 
-// One incomplete goal step, front and center on the home screen — goal
-// progress shouldn't require a trip into Settings to move forward.
+// The single home-screen checkbox is the daily action of the affirmation
+// currently on screen. It does not touch the streak or the goal checklist.
+function readTodayStepsDone() {
+  let data = {};
+  try { data = JSON.parse(localStorage.getItem('today-steps-done') || '{}'); } catch {}
+  const today = new Date().toDateString();
+  if (data._date !== today) return { _date: today };
+  return data;
+}
+
 function renderTodayStep() {
   const card = document.getElementById('todayStepCard');
   const textEl = document.getElementById('todayStepText');
   const checkbox = document.getElementById('todayStepCheckbox');
   if (!card || !textEl || !checkbox) return;
 
-  const idx = goalData.steps.findIndex(s => !s.done);
-  if (!goalData.goal || idx === -1) {
+  const canonical = currentAffirmation && currentAffirmation.todayStep;
+  const step = canonical
+    ? (addressForm === 'f' && currentAffirmation.todayStepF ? currentAffirmation.todayStepF : canonical)
+    : '';
+  if (!step) {
     card.style.display = 'none';
     return;
   }
   card.style.display = '';
-  textEl.textContent = goalData.steps[idx].text;
-  checkbox.checked = false;
-  checkbox.onchange = () => toggleGoalStep(idx);
+  textEl.textContent = step;
+  checkbox.checked = !!readTodayStepsDone()[canonical];
+  checkbox.onchange = () => {
+    const data = readTodayStepsDone();
+    if (checkbox.checked) data[canonical] = true;
+    else delete data[canonical];
+    localStorage.setItem('today-steps-done', JSON.stringify(data));
+  };
 }
 
 function renderGoalSteps() {
@@ -1694,7 +1796,7 @@ function openVisualize() {
   if (!goalData.goal && !currentAffirmation) return;
   logAnalyticsEvent('visualize_started');
   document.getElementById('visualizeGoalText').textContent = goalData.goal ? `🎯 ${goalData.goal}` : '';
-  document.getElementById('visualizeAffirmationText').textContent = currentAffirmation ? currentAffirmation.text : '';
+  document.getElementById('visualizeAffirmationText').textContent = currentAffirmation ? affirmationText(currentAffirmation) : '';
   document.getElementById('visualizeSection').classList.add('active');
 
   let seconds = 60;
@@ -1836,6 +1938,9 @@ async function syncFromCloud(uid) {
       localStorage.setItem('favorites', JSON.stringify(mergeStringArrays(getFavorites(), cloud.favorites)));
       localStorage.setItem('personal-affirmations', JSON.stringify(mergeStringArrays(getPersonalAffirmations(), cloud.personalAffirmations)));
       localStorage.setItem('reminders-list', JSON.stringify(mergeReminders(getReminders(), cloud.reminders)));
+      if (cloud.addressForm === 'f' || cloud.addressForm === 'm') {
+        setAddressForm(cloud.addressForm, { skipCloud: true });
+      }
       syncSettingsToSW();
       startReminderChecker();
 
@@ -1866,7 +1971,8 @@ async function pushToCloud() {
       favorites: getFavorites(),
       personalAffirmations: getPersonalAffirmations(),
       reminders: getReminders(),
-      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      addressForm: addressForm === 'f' ? 'f' : 'm'
     });
   } catch {
     showToast(t('toastSyncError'));

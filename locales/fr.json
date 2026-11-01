@@ -153,8 +153,8 @@
   "nudgeCreatePlan": "💡 Vous n'avez pas encore créé de plan AI Coach personnel — c'est exactement pour ça que vous payez",
   "nudgeTryCamera": "📷 Vous n'avez pas essayé le mode caméra récemment — regardez-vous et dites l'affirmation",
   "journalTitle": "Journal de croyance",
-  "journalDesc": "Quand aujourd'hui avez-vous senti, ne serait-ce qu'un instant, que c'est possible ? Écrivez une phrase.",
-  "journalPlaceholder": "Écrivez un moment de croyance...",
+  "journalDesc": "Qu'avez-vous fait concrètement aujourd'hui ? Un pas, même petit, compte.",
+  "journalPlaceholder": "Un pas que j'ai fait aujourd'hui...",
   "journalAdded": "Enregistré dans le journal ✓",
   "accountTitle": "Compte",
   "signInGoogle": "Se connecter avec Google",
@@ -170,5 +170,10 @@
   "addReminder": "Ajouter un rappel",
   "remindersMax": "Vous pouvez ajouter jusqu'à 10 rappels",
   "newReminderLabel": "Nouveau rappel",
-  "xiaomiNotice": "Nous avons remarqué que vous êtes sur un appareil Xiaomi/MIUI — pour que les notifications arrivent de manière fiable, allez dans : Sécurité → Autorisations → Démarrage automatique, et autorisez ce navigateur."
+  "xiaomiNotice": "Nous avons remarqué que vous êtes sur un appareil Xiaomi/MIUI — pour que les notifications arrivent de manière fiable, allez dans : Sécurité → Autorisations → Démarrage automatique, et autorisez ce navigateur.",
+  "coachTodayLabel": "Votre coach de la semaine 🎯",
+  "addressFormTitle": "Forme d'adresse",
+  "addressFormDesc": "Formulation au masculin ou au féminin en hébreu",
+  "addressFormMale": "Masculin",
+  "addressFormFemale": "Féminin"
 }

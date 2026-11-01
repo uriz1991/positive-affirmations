@@ -142,7 +142,7 @@ body {
 
 .today-step-card {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
   margin: 0 12px 6px;
   padding: 8px 12px;
@@ -157,6 +157,7 @@ body {
 
 .today-step-card input[type="checkbox"] {
   flex-shrink: 0;
+  margin-top: 2px;
 }
 
 .today-step-prefix {
@@ -166,9 +167,8 @@ body {
 }
 
 .today-step-card #todayStepText {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  line-height: 1.45;
 }
 
 .category-chip {
