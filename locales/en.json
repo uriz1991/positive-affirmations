@@ -154,8 +154,8 @@
   "nudgeCreatePlan": "💡 You haven't created a personal AI Coach plan yet — that's exactly what you're paying for",
   "nudgeTryCamera": "📷 You haven't tried camera mode lately — look at yourself and say the affirmation",
   "journalTitle": "Belief Journal",
-  "journalDesc": "When today did you feel, even for a moment, that this is possible? Write one sentence.",
-  "journalPlaceholder": "Write a belief moment...",
+  "journalDesc": "What did you actually do today? One step, even a small one, counts.",
+  "journalPlaceholder": "A step I took today...",
   "journalAdded": "Saved to journal ✓",
   "accountTitle": "Account",
   "signInGoogle": "Sign in with Google",
@@ -171,5 +171,9 @@
   "addReminder": "Add reminder",
   "remindersMax": "You can add up to 10 reminders",
   "newReminderLabel": "New reminder",
-  "xiaomiNotice": "We noticed you're on a Xiaomi/MIUI device — for notifications to arrive reliably, go to: Security → Permissions → Autostart, and allow this browser."
+  "xiaomiNotice": "We noticed you're on a Xiaomi/MIUI device — for notifications to arrive reliably, go to: Security → Permissions → Autostart, and allow this browser.",
+  "addressFormTitle": "How to address you",
+  "addressFormDesc": "Masculine or feminine wording in Hebrew",
+  "addressFormMale": "Masculine",
+  "addressFormFemale": "Feminine"
 }

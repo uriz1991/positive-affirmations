@@ -153,8 +153,8 @@
   "nudgeCreatePlan": "💡 Aún no has creado un plan de AI Coach personal — es justo por eso que pagas",
   "nudgeTryCamera": "📷 No has probado el modo cámara últimamente — mírate y di la afirmación",
   "journalTitle": "Diario de fe",
-  "journalDesc": "¿Cuándo hoy sentiste, aunque sea por un momento, que esto es posible? Escribe una frase.",
-  "journalPlaceholder": "Escribe un momento de fe...",
+  "journalDesc": "¿Qué hiciste hoy en la práctica? Un paso, aunque sea pequeño, cuenta.",
+  "journalPlaceholder": "Un paso que di hoy...",
   "journalAdded": "Guardado en el diario ✓",
   "accountTitle": "Cuenta",
   "signInGoogle": "Iniciar sesión con Google",
@@ -170,5 +170,10 @@
   "addReminder": "Agregar recordatorio",
   "remindersMax": "Puedes agregar hasta 10 recordatorios",
   "newReminderLabel": "Nuevo recordatorio",
-  "xiaomiNotice": "Notamos que usas un dispositivo Xiaomi/MIUI — para que las notificaciones lleguen de forma confiable, ve a: Seguridad → Permisos → Inicio automático, y permite este navegador."
+  "xiaomiNotice": "Notamos que usas un dispositivo Xiaomi/MIUI — para que las notificaciones lleguen de forma confiable, ve a: Seguridad → Permisos → Inicio automático, y permite este navegador.",
+  "coachTodayLabel": "Tu coach semanal 🎯",
+  "addressFormTitle": "Forma de tratamiento",
+  "addressFormDesc": "Redacción en masculino o femenino en hebreo",
+  "addressFormMale": "Masculino",
+  "addressFormFemale": "Femenino"
 }

@@ -40,7 +40,7 @@
     <p class="coach-today-affirmation" id="coachTodayAffirmation" style="display:none"></p>
   </div>
 
-  <!-- Today's step from the big goal -->
+  <!-- Today's step for the affirmation currently on screen -->
   <label class="today-step-card" id="todayStepCard" style="display:none">
     <input type="checkbox" id="todayStepCheckbox">
     <span class="today-step-prefix" data-i18n="todayStepPrefix">הצעד של היום:</span>
@@ -258,10 +258,19 @@
     <!-- ===== Tab: Personalization ===== -->
     <div class="tab-content" data-tab-content="personal">
       <div class="setting-group">
+        <h3 data-i18n="addressFormTitle">לשון פנייה</h3>
+        <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 8px;" data-i18n="addressFormDesc">איך לפנות אליך במשפטים ובתפריטים</p>
+        <div class="lang-selector" id="addressFormSelector">
+          <button type="button" class="lang-btn" id="addressFormMaleBtn" data-i18n="addressFormMale">לשון זכר</button>
+          <button type="button" class="lang-btn" id="addressFormFemaleBtn" data-i18n="addressFormFemale">לשון נקבה</button>
+        </div>
+      </div>
+
+      <div class="setting-group">
         <h3>&#128173; <span data-i18n="journalTitle">רגעי אמונה</span></h3>
-        <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 8px;" data-i18n="journalDesc">מתי היום הרגשת לרגע שזה אפשרי? רשום משפט אחד.</p>
+        <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 8px;" data-i18n="journalDesc">מה עשית היום בפועל? צעד אחד, גם קטן, נחשב.</p>
         <div class="personal-input">
-          <input type="text" id="journalInput" data-i18n-placeholder="journalPlaceholder" placeholder="כתוב רגע אמונה..." maxlength="200">
+          <input type="text" id="journalInput" data-i18n-placeholder="journalPlaceholder" placeholder="צעד שעשיתי היום..." maxlength="200">
           <button id="addJournalBtn">&#10133;</button>
         </div>
         <div class="personal-list" id="journalList"></div>
@@ -397,6 +406,7 @@
   </div>
 
   <script type="module" src="firebase-init.js"></script>
+  <script src="shared/notification-select.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
