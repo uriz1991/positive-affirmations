@@ -11,5 +11,11 @@
     "@google/generative-ai": "^0.21.0",
     "stripe": "^17.3.1"
   },
-  "private": true
+  "private": true,
+  "scripts": {
+    "lint": "eslint ."
+  },
+  "devDependencies": {
+    "eslint": "^8.57.1"
+  }
 }

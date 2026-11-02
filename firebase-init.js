@@ -59,6 +59,20 @@ const generatePersonalPlanFn = httpsCallable(functions, 'generatePersonalPlan');
 const redeemReferralFn = httpsCallable(functions, 'redeemReferral');
 const deleteAccountFn = httpsCallable(functions, 'deleteAccount');
 
+// Fields saveUserData may write. fcmTokens and fcmTokenBound are written
+// only by saveFcmToken / removeFcmToken. Server-owned fields (isPro,
+// referredBy, referralCount, aiGenCount, personalPlan, …) are not here.
+const CLIENT_USER_FIELDS = [
+  'goalData',
+  'journal',
+  'favorites',
+  'personalAffirmations',
+  'reminders',
+  'timezone',
+  'addressForm',
+  'language'
+];
+
 window.AppAuth = {
   signIn: () => signInWithPopup(auth, provider),
   // Trusted Web Activity blocks window.open, so the Play build uses a redirect.
@@ -76,8 +90,14 @@ window.AppAuth = {
     const snap = await getDoc(doc(db, 'users', uid));
     return snap.exists() ? snap.data() : null;
   },
+  // Must stay inside the firestore.rules clientUserFields() allowlist.
+  // Unknown keys are dropped so one extra field cannot fail the whole sync.
   saveUserData: async (uid, data) => {
-    await setDoc(doc(db, 'users', uid), { ...data, updatedAt: Date.now() }, { merge: true });
+    const payload = { updatedAt: Date.now() };
+    CLIENT_USER_FIELDS.forEach((key) => {
+      if (data && Object.prototype.hasOwnProperty.call(data, key)) payload[key] = data[key];
+    });
+    await setDoc(doc(db, 'users', uid), payload, { merge: true });
   },
   saveFcmToken: async (uid, token) => {
     const key = window.NotificationSelect && window.NotificationSelect.tokenFieldKey

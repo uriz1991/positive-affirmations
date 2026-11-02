@@ -2315,17 +2315,28 @@ async function loadGeneratedContent() {
     }
   }
 
+  // Snapshot the built-in catalog before generated lines are appended.
+  // The public popular list is allowed to repeat those sentences only.
+  const catalogTexts = new Set();
+  (affirmationsData.affirmations || []).forEach((item) => {
+    if (item && typeof item.text === 'string') catalogTexts.add(item.text);
+    if (item && typeof item.textF === 'string') catalogTexts.add(item.textF);
+  });
+
   if (Array.isArray(generated)) {
     affirmationsData.affirmations.push(
       ...generated.filter(g => g?.language === 'he' && g.text && g.category)
     );
   }
 
-  if (Array.isArray(popular) && popular.length) {
+  const safePopular = Array.isArray(popular)
+    ? popular.filter((p) => p && typeof p.text === 'string' && catalogTexts.has(p.text))
+    : [];
+  if (safePopular.length) {
     if (!affirmationsData.categories.popular) {
       affirmationsData.categories.popular = t('categoryPopular');
     }
-    affirmationsData.affirmations.push(...popular.map(p => ({ text: p.text, category: 'popular' })));
+    affirmationsData.affirmations.push(...safePopular.map(p => ({ text: p.text, category: 'popular' })));
   }
 
   renderCategoryChips();

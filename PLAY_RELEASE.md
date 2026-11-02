@@ -88,6 +88,7 @@ gcloud services enable eventarc.googleapis.com run.googleapis.com pubsub.googlea
 - `roles/iam.serviceAccountUser`
 - `roles/artifactregistry.writer`
 - `roles/cloudbuild.builds.editor`
+- `roles/iam.securityReviewer` — קריאה של מדיניות ה-IAM של הפרויקט (`resourcemanager.projects.getIamPolicy`). דיפלוי הפונקציות קורא את המדיניות כדי לבדוק אם כריכה כבר קיימת. בלי זה הוא נכשל לפני שהוא מספיק לדווח מה חסר (הכשל האחרון ביקש את `roles/run.invoker` על חשבון הריצה). התפקיד הזה קורא מדיניות ולא משנה אותה. עדיף על `roles/resourcemanager.projectIamAdmin`.
 
 `roles/artifactregistry.admin` צריך רק אם מגדירים מדיניות ניקוי (cleanup policy). לא נדרש כאן.
 
@@ -96,6 +97,9 @@ gcloud services enable eventarc.googleapis.com run.googleapis.com pubsub.googlea
 - `service-PROJECT_NUMBER@gcp-sa-eventarc.iam.gserviceaccount.com` → `roles/eventarc.serviceAgent`
 - `service-PROJECT_NUMBER@gcp-sa-pubsub.iam.gserviceaccount.com` → `roles/iam.serviceAccountTokenCreator` (חובה בפרויקטים שנפתחו לפני אפריל 2021)
 - `PROJECT_NUMBER-compute@developer.gserviceaccount.com` (חשבון הריצה) → `roles/eventarc.eventReceiver`
+- `PROJECT_NUMBER-compute@developer.gserviceaccount.com` (חשבון הריצה) → `roles/run.invoker`
+
+`roles/run.invoker` על חשבון הריצה חסר היום. דיפלוי הפונקציות האחרון נכשל כי הוא ביקש את הכריכה הזו: פונקציות דור 2 רצות כשירות Cloud Run, ו-Cloud Scheduler / Eventarc צריכים הרשאת invoke על חשבון הריצה. בעל הפרויקט נותן אותה פעם אחת. חשבון הדיפלוי לא צריך `roles/resourcemanager.projectIamAdmin` בשביל זה, אם הכריכה כבר קיימת והוא יכול לקרוא את המדיניות (`roles/iam.securityReviewer` למעלה).
 
 אם בכל זאת נותנים לחשבון הדיפלוי `roles/resourcemanager.projectIamAdmin`, הוא יכול להעניק את התפקידים האלה בעצמו. לא שניהם חובה.
 
@@ -122,9 +126,11 @@ gcloud services enable eventarc.googleapis.com run.googleapis.com pubsub.googlea
 
 מחיקת חשבון רצה לפי סדר שאפשר לחזור עליו: קודם ביטול המנוי ב-Stripe (לקוח שכבר לא קיים לא עוצר), אחר כך סימון `deletedAccounts/{uid}` במצב `pending`, מחיקת המסמכים, מחיקת לקוח Stripe, ורק בסוף מחיקת משתמש ההתחברות. עד שהשלב האחרון מצליח אפשר ללחוץ שוב. עבודה שנתקעת ב-`pending` ממשיכה מעצמה כל שעה. תזכורות והמאמן השבועי מדלגים על מזהים שנמצאים ב-`deletedAccounts`. כתיבה מחדש של `users/{uid}` אחרי הסימון נמחקת בשרת.
 
-מכשיר אחר עם אסימון שעדיין בתוקף (עד כשעה) יכול לנסות לכתוב. הכלל שסוגר את זה לגמרי לא נמצא בריפו ולא נפרס מכאן. כשתעדכן את הכללים בעצמך:
+מכשיר אחר עם אסימון שעדיין בתוקף (עד כשעה) יכול לנסות לכתוב. הכלל שסוגר את זה נמצא ב-`firestore.rules` (`notDeleted`: אי אפשר ליצור או לעדכן את `users/{userId}` כל עוד קיים `deletedAccounts/{userId}`). הוא לא עולה עם דיפלוי הפונקציות. מפרסמים אותו בנפרד, אחרי בדיקת האמולטור:
 
-`allow write: if request.auth.uid == uid && !exists(/databases/$(database)/documents/deletedAccounts/$(uid));`
+`firebase deploy --only firestore:rules --project positive-affirmations-9f382`
+
+עד שהכללים מפורסמים, `dropRewrittenDeletedUser` עדיין מוחק כתיבה מחדש אחרי הסימון.
 
 ## 7. מה עובר לאפל אחר כך
 

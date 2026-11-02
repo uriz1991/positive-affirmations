@@ -1,0 +1,99 @@
+rules_version = '2';
+// positive-affirmations-9f382
+// Client writes are the ones in firebase-init.js (saveUserData, saveFcmToken,
+// removeFcmToken). The Admin SDK bypasses these rules.
+// Not deployed by the functions workflow. Publish with:
+//   firebase deploy --only firestore:rules --project positive-affirmations-9f382
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedInAs(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    // Written by deleteAccount at the start of a deletion. While it exists
+    // the owner cannot create or update users/{uid}. The variable is userId,
+    // matching the path below (an earlier note used `uid` and would not compile).
+    function notDeleted(uid) {
+      return !exists(/databases/$(database)/documents/deletedAccounts/$(uid));
+    }
+
+    // saveUserData, saveFcmToken, removeFcmToken. Server-only fields
+    // (referredBy, referralCount, aiGenCount, aiGenDate, personalPlan,
+    // weeklyCoach, remindersSentToday, notificationRecentIds, isPro, …)
+    // are not in this list.
+    function clientUserFields() {
+      return ['goalData', 'journal', 'favorites', 'personalAffirmations',
+              'reminders', 'timezone', 'addressForm', 'language', 'updatedAt',
+              'fcmTokens', 'fcmTokenBound'];
+    }
+
+    // Checked only for keys this write touches, so an old value in a field
+    // the write does not change cannot block the sync.
+    function validUserShape(d, k) {
+      return (!('favorites' in k) || d.favorites is list)
+        && (!('journal' in k) || d.journal is list)
+        && (!('personalAffirmations' in k) || d.personalAffirmations is list)
+        && (!('reminders' in k) || d.reminders is list)
+        && (!('fcmTokens' in k) || (d.fcmTokens is list && d.fcmTokens.size() <= 20))
+        && (!('fcmTokenBound' in k) || d.fcmTokenBound is map)
+        && (!('goalData' in k) || d.goalData is map)
+        && (!('timezone' in k) || (d.timezone is string && d.timezone.size() <= 64))
+        && (!('addressForm' in k) || d.addressForm in ['m', 'f'])
+        && (!('language' in k) || d.language in ['he', 'en', 'fr', 'es'])
+        && (!('updatedAt' in k) || d.updatedAt is number);
+    }
+
+    match /users/{userId} {
+      allow read: if signedInAs(userId);
+
+      allow create: if signedInAs(userId)
+        && notDeleted(userId)
+        && request.resource.data.keys().hasOnly(clientUserFields())
+        && validUserShape(request.resource.data, request.resource.data.keys().toSet());
+
+      allow update: if signedInAs(userId)
+        && notDeleted(userId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(clientUserFields())
+        && validUserShape(request.resource.data, request.resource.data.diff(resource.data).affectedKeys());
+
+      // deleteAccount uses the Admin SDK. A client delete would wipe
+      // server-written fields that still sit on this doc.
+      allow delete: if false;
+    }
+
+    match /generated-affirmations/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // Read before sign-in (firebase-init.js loadPopularAffirmations).
+    // aggregatePopularAffirmations writes catalog lines only.
+    match /stats/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /subscriptions/{uid} {
+      allow read: if signedInAs(uid);
+      allow write: if false;
+    }
+
+    match /stripeCustomers/{customerId} {
+      allow read, write: if false;
+    }
+
+    match /deletedAccounts/{uid} {
+      allow read, write: if false;
+    }
+
+    // Referral redemption lock and the Gemini daily counter. Server only.
+    match /referrals/{uid} {
+      allow read, write: if false;
+    }
+
+    match /usage/{uid} {
+      allow read, write: if false;
+    }
+  }
+}

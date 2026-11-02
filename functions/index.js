@@ -76,6 +76,22 @@ const {
   applyRefundPlan,
   blockedSenderUids
 } = require('./account-deletion');
+const {
+  isAllowedPrice,
+  trialEligible,
+  checkoutBlocked,
+  customerIdOf,
+  shouldApplyBillingEvent,
+  billingPatchFromSubscription
+} = require('./billing-policy');
+const {
+  validReferrerUid,
+  isNewAccount,
+  nextBonusUntil,
+  grantedBonusDays
+} = require('./referral-policy');
+const { DAILY_GEN_LIMIT, claimQuota, releaseCount } = require('./usage-quota');
+const { countCatalogFavorites, catalogTextsForPrompt } = require('./catalog-favorites');
 const NOTIFICATION_POOLS = {
   he: require('./notification-pool.json').items,
   en: require('./notification-pool-en.json').items,
@@ -242,7 +258,9 @@ exports.generateDailyAffirmations = onSchedule({
   // Give the model real examples of what users actually loved, as style
   // reference only — it must write new original lines, never copy these.
   const popularSnap = await db.doc('stats/popular-affirmations').get();
-  const popularExamples = (popularSnap.data()?.top || []).slice(0, 8).map(p => p.text);
+  // Catalog lines only. Personal text that an older aggregate stored here
+  // must not be copied into the prompt.
+  const popularExamples = catalogTextsForPrompt(popularSnap.data()?.top);
 
   const categoryKeys = Object.keys(CATEGORIES);
   const perCategory = Math.max(1, Math.round(AFFIRMATIONS_PER_DAY / categoryKeys.length));
@@ -285,24 +303,13 @@ exports.generateDailyAffirmations = onSchedule({
   if (written > 0) await batch.commit();
 });
 
-// ===== Aggregate what users actually favorited, across everyone =====
+// ===== Aggregate catalog favorites only =====
+// Personal and other free-typed favorites are not public and are not counted.
+// The next run replaces stats/popular-affirmations, which drops anything the
+// old counter wrote that is not a catalog line.
 exports.aggregatePopularAffirmations = onSchedule('every 24 hours', async () => {
   const usersSnap = await db.collection('users').get();
-  const counts = new Map();
-
-  usersSnap.docs.forEach((doc) => {
-    const favorites = doc.data().favorites;
-    if (!Array.isArray(favorites)) return;
-    favorites.forEach((text) => {
-      if (typeof text !== 'string' || !text.trim()) return;
-      counts.set(text, (counts.get(text) || 0) + 1);
-    });
-  });
-
-  const top = [...counts.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 50)
-    .map(([text, count]) => ({ text, count }));
+  const top = countCatalogFavorites(usersSnap.docs.map((doc) => doc.data().favorites));
 
   await db.doc('stats/popular-affirmations').set({
     top,
@@ -312,41 +319,85 @@ exports.aggregatePopularAffirmations = onSchedule('every 24 hours', async () => 
 
 // ===== Stripe: checkout + webhook =====
 // Subscription status lives in its OWN doc (subscriptions/{uid}), never in
-// users/{uid} — the client's Firestore rule lets a user write their own
-// users/{uid} doc, so a subscription flag there could be self-granted from
-// devtools. subscriptions/{uid} is client-read-only; only this webhook
-// (Admin SDK, bypasses rules) can ever set isPro.
+// users/{uid}. firestore.rules lets the owner write only profile fields, and
+// subscriptions/{uid} stays client-read-only. Only the Admin SDK sets isPro.
+// The Stripe webhook must be subscribed to checkout.session.completed and
+// customer.subscription.created, updated, and deleted. That last part is a
+// dashboard setting, not something this code can turn on.
 
 exports.createCheckoutSession = onCall({ secrets: [stripeSecretKey] }, async (request) => {
   if (!request.auth) {
     throw new HttpsError('unauthenticated', 'Sign in before upgrading.');
   }
   const priceId = request.data?.priceId;
-  if (!priceId || typeof priceId !== 'string') {
-    throw new HttpsError('invalid-argument', 'Missing priceId.');
+  if (!isAllowedPrice(priceId)) {
+    throw new HttpsError('invalid-argument', 'Unknown price.');
+  }
+
+  const uid = request.auth.uid;
+  const subRef = db.doc('subscriptions/' + uid);
+  let reserved;
+  try {
+    reserved = await db.runTransaction(async (tx) => {
+      const snap = await tx.get(subRef);
+      const data = snap.exists ? snap.data() : null;
+      if (checkoutBlocked(data)) return { blocked: true };
+      const trial = trialEligible(data);
+      if (trial) {
+        tx.set(subRef, { trialUsed: true, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+      }
+      return {
+        blocked: false,
+        trial,
+        customerId: (data && data.stripeCustomerId) || null
+      };
+    });
+  } catch (err) {
+    logger.error('Checkout reservation failed', { uid, message: err.message });
+    throw new HttpsError('internal', 'Could not start checkout. Try again.');
+  }
+  if (reserved.blocked) {
+    throw new HttpsError('failed-precondition', 'This account already has a subscription. Use the subscription portal.');
   }
 
   const stripe = stripeClient();
-  const uid = request.auth.uid;
+  const subscriptionData = { metadata: { uid, priceId } };
+  if (reserved.trial) subscriptionData.trial_period_days = 7;
+  const params = {
+    mode: 'subscription',
+    line_items: [{ price: priceId, quantity: 1 }],
+    client_reference_id: uid,
+    metadata: { uid, priceId },
+    subscription_data: subscriptionData,
+    success_url: `${APP_URL}?upgraded=1`,
+    cancel_url: APP_URL
+  };
+  if (reserved.customerId) params.customer = reserved.customerId;
 
   let session;
   try {
-    session = await stripe.checkout.sessions.create({
-      mode: 'subscription',
-      line_items: [{ price: priceId, quantity: 1 }],
-      client_reference_id: uid,
-      metadata: { uid },
-      subscription_data: { metadata: { uid }, trial_period_days: 7 },
-      success_url: `${APP_URL}?upgraded=1`,
-      cancel_url: APP_URL
-    });
+    session = await stripe.checkout.sessions.create(params);
   } catch (err) {
-    logger.error('Stripe checkout session creation failed', { message: err.message, type: err.type });
-    throw new HttpsError('internal', `Stripe error: ${err.message}`);
+    logger.error('Stripe checkout session creation failed', { uid, message: err.message, type: err.type, code: err.code });
+    if (reserved.trial) await rollBackTrialReservation(subRef, uid);
+    throw new HttpsError('internal', 'Could not start checkout. Try again.');
   }
 
   return { url: session.url };
 });
+
+async function rollBackTrialReservation(subRef, uid) {
+  try {
+    await db.runTransaction(async (tx) => {
+      const snap = await tx.get(subRef);
+      const data = snap.data() || {};
+      if (data.stripeSubscriptionId || data.isPro || data.status) return;
+      tx.set(subRef, { trialUsed: false }, { merge: true });
+    });
+  } catch (err) {
+    logger.error('Failed to roll back trial reservation', { uid, message: err.message });
+  }
+}
 
 // Lets a paying user cancel or manage their own subscription — without this,
 // the only way to cancel is emailing support, which is not acceptable for a
@@ -371,8 +422,8 @@ exports.createPortalSession = onCall({ secrets: [stripeSecretKey] }, async (requ
     });
     return { url: session.url };
   } catch (err) {
-    logger.error('Stripe portal session creation failed', { message: err.message });
-    throw new HttpsError('internal', `Stripe error: ${err.message}`);
+    logger.error('Stripe portal session creation failed', { uid, message: err.message, type: err.type, code: err.code });
+    throw new HttpsError('internal', 'Could not open the subscription portal. Try again.');
   }
 });
 
@@ -383,63 +434,127 @@ exports.stripeWebhook = onRequest({ secrets: [stripeSecretKey, stripeWebhookSecr
     event = stripe.webhooks.constructEvent(req.rawBody, req.headers['stripe-signature'], secretValue(stripeWebhookSecret));
   } catch (err) {
     logger.error('Stripe webhook signature verification failed', { message: err.message });
-    res.status(400).send(`Webhook signature error: ${err.message}`);
+    res.status(400).send('Invalid signature');
     return;
   }
 
   try {
     if (event.type === 'checkout.session.completed') {
-      const session = event.data.object;
-      const uid = session.client_reference_id || session.metadata?.uid;
-      if (uid) {
-        const status = await deletionTombstoneStatus(uid);
-        // A missing users/{uid} is normal: checkout often beats the first sync.
-        // Only an account that is already being deleted must not become Pro.
-        if (checkoutDecision(status) === 'revoke-payment') {
-          await revokeCheckoutForDeletedAccount(stripe, session);
-          await db.doc('subscriptions/' + uid).delete();
-        } else {
-          await db.doc('subscriptions/' + uid).set({
-            isPro: true,
-            stripeCustomerId: session.customer,
-            updatedAt: FieldValue.serverTimestamp()
-          }, { merge: true });
-          // Reverse lookup so the cancellation event (which only carries the
-          // Stripe customer id, not our uid) can find the right user.
-          await db.doc('stripeCustomers/' + session.customer).set({ uid });
-        }
-      }
-    } else if (event.type === 'customer.subscription.deleted') {
-      const subscription = event.data.object;
-      const customerId = subscription.customer;
-      const lookup = await db.doc('stripeCustomers/' + customerId).get();
-      const uid = lookup.data()?.uid || subscription.metadata?.uid;
-      if (uid) {
-        if (deletionTombstoneActive(await deletionTombstoneStatus(uid))) {
-          await db.doc('subscriptions/' + uid).delete();
-        } else {
-          await db.doc('subscriptions/' + uid).set({
-            isPro: false,
-            updatedAt: FieldValue.serverTimestamp()
-          }, { merge: true });
-        }
-      }
+      await handleCheckoutCompleted(stripe, event);
+    } else if (
+      event.type === 'customer.subscription.created' ||
+      event.type === 'customer.subscription.updated' ||
+      event.type === 'customer.subscription.deleted'
+    ) {
+      await applySubscriptionEvent(event);
     }
   } catch (err) {
-    logger.error('Stripe webhook handling failed', { message: err.message, eventType: event?.type });
-    // A failed cancel/refund for a deleted account must retry. Other failures
-    // still ack so a transient Firestore error does not loop forever.
-    if (err && err.retryWebhook) {
-      res.status(500).json({ error: err.message });
-      return;
-    }
+    logger.error('Stripe webhook handling failed', {
+      message: err.message,
+      eventType: event?.type,
+      eventId: event?.id
+    });
+    // Status changes and deleted-account refunds must retry. The handler is
+    // idempotent, and Stripe stops retrying after its own schedule.
+    res.status(500).json({ error: 'webhook handler failed' });
+    return;
   }
 
   res.json({ received: true });
 });
 
+async function handleCheckoutCompleted(stripe, event) {
+  const session = event.data.object;
+  const uid = session.client_reference_id || session.metadata?.uid;
+  if (!uid) return;
+  const customerId = customerIdOf(session.customer);
+  const deletionStatus = await deletionTombstoneStatus(uid);
+  // A missing users/{uid} is normal: checkout often beats the first sync.
+  // Only an account that is already being deleted must not become Pro.
+  if (checkoutDecision(deletionStatus) === 'revoke-payment') {
+    await revokeCheckoutForDeletedAccount(stripe, session);
+    await db.doc('subscriptions/' + uid).delete();
+    return;
+  }
+
+  const subId = typeof session.subscription === 'string'
+    ? session.subscription
+    : session.subscription && session.subscription.id;
+  if (!subId) {
+    logger.error('Checkout completed without a subscription id', { uid, eventId: event.id });
+    throw retryableWebhookError('checkout session has no subscription');
+  }
+  let subscription;
+  try {
+    subscription = await stripe.subscriptions.retrieve(subId);
+  } catch (err) {
+    logger.error('Could not load subscription for checkout', { uid, eventId: event.id, message: err.message });
+    throw retryableWebhookError('subscription retrieve failed');
+  }
+  await writeSubscriptionSnapshot(uid, subscription, event, customerId);
+}
+
+async function applySubscriptionEvent(event) {
+  const subscription = event.data.object;
+  const customerId = customerIdOf(subscription.customer);
+  let uid = subscription.metadata && subscription.metadata.uid;
+  if (!uid && customerId) {
+    const lookup = await db.doc('stripeCustomers/' + customerId).get();
+    uid = lookup.data()?.uid;
+  }
+  if (!uid) {
+    logger.error('Subscription event has no uid', { eventId: event.id, type: event.type });
+    return;
+  }
+  if (deletionTombstoneActive(await deletionTombstoneStatus(uid))) {
+    await db.doc('subscriptions/' + uid).delete();
+    return;
+  }
+  await writeSubscriptionSnapshot(uid, subscription, event, customerId);
+}
+
+async function writeSubscriptionSnapshot(uid, subscription, event, customerId) {
+  const ref = db.doc('subscriptions/' + uid);
+  const existingSnap = await ref.get();
+  const existing = existingSnap.exists ? existingSnap.data() : null;
+  if (!shouldApplyBillingEvent(existing, event.created)) {
+    logger.info('Ignoring stale billing event', { uid, type: event.type, eventId: event.id });
+    if (customerId && existing && !existing.stripeCustomerId) {
+      await ref.set({ stripeCustomerId: customerId }, { merge: true });
+    }
+    return;
+  }
+  const patch = billingPatchFromSubscription(subscription, event.created);
+  if (patch.malformed) {
+    logger.error('Subscription payload is missing a price id', { uid, eventId: event.id, type: event.type, status: patch.status });
+    throw retryableWebhookError('subscription payload missing price');
+  }
+  if (patch.priceRejected) {
+    logger.error('Subscription price is not allowlisted', { uid, eventId: event.id, type: event.type, priceId: patch.priceId });
+  }
+  const storedCustomer = patch.stripeCustomerId || customerId || null;
+  await ref.set({
+    isPro: patch.isPro,
+    status: patch.status,
+    priceId: patch.priceId,
+    stripeSubscriptionId: patch.stripeSubscriptionId,
+    stripeCustomerId: storedCustomer,
+    currentPeriodEnd: patch.currentPeriodEnd,
+    billingEventAt: patch.billingEventAt,
+    billingEventId: event.id,
+    trialUsed: true,
+    updatedAt: FieldValue.serverTimestamp()
+  }, { merge: true });
+  if (storedCustomer) {
+    await db.doc('stripeCustomers/' + storedCustomer).set({ uid }, { merge: true });
+  }
+}
+
 // ===== Referral program: 7 bonus days of AI Coach per new signup =====
-const REFERRAL_BONUS_DAYS = 7;
+// The lock is referrals/{referredUid}, written only here. Clearing
+// users/{uid}.referredBy (or deleting that doc) cannot redeem again.
+// An account that already has referredBy is migrated into the lock
+// without granting another week.
 
 exports.redeemReferral = onCall(async (request) => {
   if (!request.auth) {
@@ -447,37 +562,84 @@ exports.redeemReferral = onCall(async (request) => {
   }
   const uid = request.auth.uid;
   const referrerUid = request.data?.referrerUid;
-  if (!referrerUid || typeof referrerUid !== 'string' || referrerUid === uid) {
+  if (!validReferrerUid(referrerUid, uid)) {
     throw new HttpsError('invalid-argument', 'Invalid referral link.');
   }
-
-  const userRef = db.doc('users/' + uid);
-  const userSnap = await userRef.get();
-  if (userSnap.data()?.referredBy) {
-    throw new HttpsError('already-exists', 'Referral already redeemed for this account.');
+  if (deletionTombstoneActive(await deletionTombstoneStatus(uid))) {
+    throw new HttpsError('failed-precondition', 'Invalid referral link.');
   }
-
-  const referrerSnap = await db.doc('users/' + referrerUid).get();
-  if (!referrerSnap.exists) {
+  if (deletionTombstoneActive(await deletionTombstoneStatus(referrerUid))) {
     throw new HttpsError('not-found', 'Referrer not found.');
   }
 
-  const subRef = db.doc('subscriptions/' + referrerUid);
-  const subSnap = await subRef.get();
+  let userRecord;
+  try {
+    userRecord = await getAuth().getUser(uid);
+  } catch (err) {
+    logger.error('redeemReferral caller lookup failed', { uid, message: err.message });
+    throw new HttpsError('failed-precondition', 'Invalid referral link.');
+  }
+  if (!isNewAccount(userRecord.metadata, Date.now())) {
+    throw new HttpsError('failed-precondition', 'Referral is only available for a new account.');
+  }
+
+  try {
+    await getAuth().getUser(referrerUid);
+  } catch (err) {
+    if (err && err.code === 'auth/user-not-found') {
+      throw new HttpsError('not-found', 'Referrer not found.');
+    }
+    logger.error('redeemReferral referrer lookup failed', { uid, message: err.message });
+    throw new HttpsError('internal', 'Could not redeem referral. Try again.');
+  }
+
   const now = Date.now();
-  const currentUntilMs = subSnap.data()?.bonusProUntil?.toMillis?.() || 0;
-  const newUntil = new Date(Math.max(now, currentUntilMs) + REFERRAL_BONUS_DAYS * 24 * 60 * 60 * 1000);
+  let result;
+  try {
+    result = await db.runTransaction(async (tx) => {
+      const redemptionRef = db.doc('referrals/' + uid);
+      const userRef = db.doc('users/' + uid);
+      const subRef = db.doc('subscriptions/' + referrerUid);
+      const redemption = await tx.get(redemptionRef);
+      const userSnap = await tx.get(userRef);
+      const subSnap = await tx.get(subRef);
+      const legacy = userSnap.data()?.referredBy;
+      if (redemption.exists || (typeof legacy === 'string' && legacy)) {
+        if (!redemption.exists) {
+          tx.set(redemptionRef, {
+            referrerUid: legacy,
+            redeemedAt: FieldValue.serverTimestamp(),
+            source: 'legacy-user-field'
+          });
+        }
+        return { already: true };
+      }
+      const currentUntilMs = subSnap.data()?.bonusProUntil?.toMillis?.() || 0;
+      const bonus = nextBonusUntil(currentUntilMs, now);
+      tx.set(redemptionRef, {
+        referrerUid,
+        redeemedAt: FieldValue.serverTimestamp(),
+        bonusUntil: new Date(bonus.untilMs)
+      });
+      if (bonus.addedMs > 0) {
+        tx.set(subRef, { bonusProUntil: new Date(bonus.untilMs) }, { merge: true });
+      }
+      // The in-app "you've invited N friends" counter. The client can read
+      // it and cannot write it (firestore.rules).
+      tx.set(db.doc('users/' + referrerUid), {
+        referralCount: FieldValue.increment(1)
+      }, { merge: true });
+      return { already: false, bonusDays: grantedBonusDays(bonus.addedMs) };
+    });
+  } catch (err) {
+    logger.error('redeemReferral transaction failed', { uid, message: err.message });
+    throw new HttpsError('internal', 'Could not redeem referral. Try again.');
+  }
 
-  await subRef.set({ bonusProUntil: newUntil }, { merge: true });
-  await userRef.set({ referredBy: referrerUid }, { merge: true });
-  // Visible on the referrer's own record — both for the in-app "you've
-  // invited N friends" counter and so you can see referral activity per
-  // user directly in the Firestore console without building a dashboard.
-  await db.doc('users/' + referrerUid).set({
-    referralCount: FieldValue.increment(1)
-  }, { merge: true });
-
-  return { bonusDays: REFERRAL_BONUS_DAYS };
+  if (result.already) {
+    throw new HttpsError('already-exists', 'Referral already redeemed for this account.');
+  }
+  return { bonusDays: result.bonusDays };
 });
 
 function hasActiveAccess(subData) {
@@ -506,61 +668,90 @@ exports.generatePersonalPlan = onCall({ secrets: [geminiApiKey] }, async (reques
     throw new HttpsError('failed-precondition', 'Set a goal before generating a personal plan.');
   }
 
-  // ₪14.90/month only covers a handful of Gemini calls — without a cap, one
-  // user hammering "regenerate" could make a single subscriber unprofitable.
-  const DAILY_GEN_LIMIT = 5;
+  // ₪14.90/month only covers a handful of Gemini calls. The counter is
+  // usage/{uid}, reserved in a transaction before the API call so parallel
+  // requests cannot all read 0. A failed call gives the credit back.
   const today = new Date().toISOString().slice(0, 10);
-  const genCountToday = userData.aiGenDate === today ? (userData.aiGenCount || 0) : 0;
-  if (genCountToday >= DAILY_GEN_LIMIT) {
-    throw new HttpsError('resource-exhausted', 'Daily plan generation limit reached, try again tomorrow.');
-  }
-
-  const journal = Array.isArray(userData.journal) ? userData.journal.slice(-10) : [];
-  const completedSteps = (userData.goalData?.steps || []).filter(s => s.done).map(s => s.text);
-
-  const genAI = new GoogleGenerativeAI(secretValue(geminiApiKey));
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
-
-  const prompt = [
-    `היעד של המשתמש: "${goal}"`,
-    completedSteps.length ? `צעדים שכבר השלים: ${completedSteps.join('; ')}` : '',
-    journal.length ? `רגעי אמונה שרשם ביומן שלו: ${journal.join('; ')}` : '',
-    '',
-    'בהתבסס על זה, כתוב עבורו:',
-    '1. שמונה משפטי אמירה חיוביים אישיים וספציפיים ליעד הזה (לא כלליים) — כל אחד בשורה נפרדת, בגוף ראשון, בניסוח ניטרלי מגדרית.',
-    '2. שלוש תובנות קצרות (2-3 משפטים כל אחת) בהשראת "חשוב והתעשר" ו"מדע ההתעשרות" על איך לזהות הזדמנויות הקשורות ליעד הזה בחיי היומיום.',
-    '',
-    'החזר JSON תקני בלבד, במבנה: {"affirmations": ["...", ...], "insights": ["...", "...", "..."]}'
-  ].filter(Boolean).join('\n');
-
-  let result;
+  const usageRef = db.doc('usage/' + uid);
+  let reservedQuota = false;
   try {
-    result = await model.generateContent(prompt);
+    const decision = await db.runTransaction(async (tx) => {
+      const usageSnap = await tx.get(usageRef);
+      const freshUser = await tx.get(db.doc('users/' + uid));
+      const claim = claimQuota(
+        usageSnap.exists ? usageSnap.data() : null,
+        freshUser.data(),
+        today,
+        DAILY_GEN_LIMIT
+      );
+      if (!claim.ok) return claim;
+      tx.set(usageRef, { aiGenCount: claim.next, aiGenDate: today }, { merge: true });
+      return claim;
+    });
+    if (!decision.ok) {
+      throw new HttpsError('resource-exhausted', 'Daily plan generation limit reached, try again tomorrow.');
+    }
+    reservedQuota = true;
+
+    const journal = Array.isArray(userData.journal) ? userData.journal.slice(-10) : [];
+    const completedSteps = (userData.goalData?.steps || []).filter(s => s.done).map(s => s.text);
+
+    const genAI = new GoogleGenerativeAI(secretValue(geminiApiKey));
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+
+    const prompt = [
+      `היעד של המשתמש: "${goal}"`,
+      completedSteps.length ? `צעדים שכבר השלים: ${completedSteps.join('; ')}` : '',
+      journal.length ? `רגעי אמונה שרשם ביומן שלו: ${journal.join('; ')}` : '',
+      '',
+      'בהתבסס על זה, כתוב עבורו:',
+      '1. שמונה משפטי אמירה חיוביים אישיים וספציפיים ליעד הזה (לא כלליים) — כל אחד בשורה נפרדת, בגוף ראשון, בניסוח ניטרלי מגדרית.',
+      '2. שלוש תובנות קצרות (2-3 משפטים כל אחת) בהשראת "חשוב והתעשר" ו"מדע ההתעשרות" על איך לזהות הזדמנויות הקשורות ליעד הזה בחיי היומיום.',
+      '',
+      'החזר JSON תקני בלבד, במבנה: {"affirmations": ["...", ...], "insights": ["...", "...", "..."]}'
+    ].filter(Boolean).join('\n');
+
+    let result;
+    try {
+      result = await model.generateContent(prompt);
+    } catch (err) {
+      logger.error('Gemini generation failed for personal plan', describeGeminiError(err));
+      throw new HttpsError('internal', 'AI generation failed. Try again.');
+    }
+
+    let parsed;
+    try {
+      const raw = result.response.text().replace(/```json|```/g, '').trim();
+      parsed = JSON.parse(raw);
+    } catch {
+      throw new HttpsError('internal', 'Could not parse the generated plan — try again.');
+    }
+
+    await db.doc('users/' + uid).set({
+      personalPlan: {
+        affirmations: parsed.affirmations || [],
+        insights: parsed.insights || [],
+        generatedAt: FieldValue.serverTimestamp()
+      }
+    }, { merge: true });
+
+    return parsed;
   } catch (err) {
-    logger.error('Gemini generation failed for personal plan', describeGeminiError(err));
-    throw new HttpsError('internal', `AI generation failed: ${err.message}`);
+    if (reservedQuota) await releaseQuota(usageRef, today, uid);
+    throw err;
   }
-
-  let parsed;
-  try {
-    const raw = result.response.text().replace(/```json|```/g, '').trim();
-    parsed = JSON.parse(raw);
-  } catch {
-    throw new HttpsError('internal', 'Could not parse the generated plan — try again.');
-  }
-
-  await db.doc('users/' + uid).set({
-    personalPlan: {
-      affirmations: parsed.affirmations || [],
-      insights: parsed.insights || [],
-      generatedAt: FieldValue.serverTimestamp()
-    },
-    aiGenCount: genCountToday + 1,
-    aiGenDate: today
-  }, { merge: true });
-
-  return parsed;
 });
+
+async function releaseQuota(usageRef, today, uid) {
+  try {
+    await db.runTransaction(async (tx) => {
+      const snap = await tx.get(usageRef);
+      tx.set(usageRef, releaseCount(snap.data(), today), { merge: true });
+    });
+  } catch (err) {
+    logger.error('Failed to release Gemini quota', { uid, message: err.message });
+  }
+}
 
 // ===== Weekly proactive AI coach (Pro only) =====
 // The point of paying isn't a one-shot content generator — it's not having
@@ -763,9 +954,9 @@ async function cancelCustomerSubscriptions(stripe, customerId, uid) {
 //
 // Another device can still write users/{uid} for up to an hour because an
 // ID token stays valid. dropRewrittenDeletedUser removes those writes, and
-// the reminder jobs skip any uid in deletedAccounts. The Firestore rule that
-// would deny the write is documented in PLAY_RELEASE.md and is not deployed
-// from this repo.
+// the reminder jobs skip any uid in deletedAccounts. firestore.rules denies
+// the write while deletedAccounts/{uid} exists. Publishing those rules is a
+// separate step from the functions deploy (see PLAY_RELEASE.md).
 async function finishAccountDeletion(uid, customerHint) {
   const tombRef = db.doc('deletedAccounts/' + uid);
   const tombSnap = await tombRef.get();
@@ -789,6 +980,8 @@ async function finishAccountDeletion(uid, customerHint) {
 
   await db.doc('users/' + uid).delete();
   await db.doc('subscriptions/' + uid).delete();
+  await db.doc('usage/' + uid).delete();
+  await db.doc('referrals/' + uid).delete();
   if (customerId) await db.doc('stripeCustomers/' + customerId).delete();
 
   if (customerId) {
