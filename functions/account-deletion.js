@@ -85,6 +85,42 @@ function pendingDeletionDue(doc, nowMs) {
   return Number(nowMs) - started >= CANCEL_GRACE_MS;
 }
 
+// A tombstone that already existed means deletion is in progress. The client
+// must stay locked. Only a tombstone this call just created, and then removed,
+// is "nothing was deleted".
+function cancelFailureErrorCode(existedBefore) {
+  return existedBefore ? 'deletion-pending' : 'stripe-cancel-failed';
+}
+
+function cancelFailureResumesSync(code) {
+  return code === 'stripe-cancel-failed';
+}
+
+// One retry, then stop. A second failure is marked so the hourly job skips it.
+const ROLLBACK_TRIES = 2;
+
+function rollbackAfterFailure(failedTries) {
+  return Number(failedTries) < ROLLBACK_TRIES ? 'retry' : 'mark-rollback-failed';
+}
+
+// Each call stores the id it generated. A concurrent call must not keep going
+// under the id the previous call already wrote.
+function attemptIdWrittenByCall(_existingAttemptId, generatedAttemptId) {
+  return generatedAttemptId;
+}
+
+const DELETION_STUCK_AFTER = 24;
+
+function nextDeletionAttempt(attempts, errorMessage) {
+  const prev = Number(attempts);
+  const next = (Number.isFinite(prev) && prev > 0 ? Math.floor(prev) : 0) + 1;
+  return {
+    attempts: next,
+    lastError: String(errorMessage || ''),
+    stuck: next >= DELETION_STUCK_AFTER
+  };
+}
+
 // Idempotent resume. Each flag is "this step already succeeded".
 function nextDeletionStep(state) {
   const current = state || {};
@@ -210,6 +246,13 @@ module.exports = {
   tombstoneRollbackMatches,
   freshCancelFailureRemovesTombstone,
   pendingDeletionDue,
+  cancelFailureErrorCode,
+  cancelFailureResumesSync,
+  ROLLBACK_TRIES,
+  rollbackAfterFailure,
+  attemptIdWrittenByCall,
+  DELETION_STUCK_AFTER,
+  nextDeletionAttempt,
   checkoutDecision,
   nextDeletionStep,
   invoiceIdFromCheckoutSession,

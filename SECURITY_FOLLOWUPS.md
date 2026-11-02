@@ -84,3 +84,17 @@ Narrow what the deploy service account can do, after a deploy still succeeds:
 Turn on branch protection for `main`: require a pull request, and do not allow the deploy workflows to run from an unprotected push if that can be required. The functions deploy runs on every push to `main` that touches `functions/`.
 
 Review who has write access, and turn on secret scanning and push protection if they are not already on. Dependabot can keep the pinned action SHAs and `functions/package-lock.json` updated. This change only pins the actions and the lockfile. It does not add branch protection or Dependabot.
+
+## Left for a later change
+
+These are known limits. They are not fixed in this branch.
+
+1. **Webhook during the cancel grace window.** A fresh deletion writes `deletedAccounts/{uid}` as `pending` with `cancelStartedAt` before Stripe cancel returns. For those two minutes the hourly job skips the doc, but a subscription webhook still treats the account as deleting and can refund a charge that lands in that window. If the cancel then fails and the tombstone is removed, that refund is not undone.
+
+2. **Partial cancel of several subscriptions on one customer.** `cancelCustomerSubscriptions` stops at the first Stripe error. Subscriptions already cancelled in that loop stay cancelled. A fresh failure removes only the tombstone. It does not restore those subscriptions.
+
+3. **What gets voided when a stored past_due subscription is cancelled.** Only the latest invoice is voided, and only when its status is `open` or `uncollectible`. Older open invoices on that subscription are not voided. Confirm in Stripe test mode that a past_due subscription with more than one open invoice does not keep collecting the older ones after cancel. Cancel already sets `auto_advance` false, which pauses automatic collection, but the older invoices stay open.
+
+4. **Several Stripe customers, partial cancel.** `customerIdsForUser` can return more than one customer. The loop cancels them in order. A failure on a later customer leaves the earlier customer's subscriptions already cancelled.
+
+5. **Stripe customer search is skipped when nothing is mapped.** If there is no customer id hint and no `stripeCustomers` doc, deletion does not search Stripe by `metadata.uid`. That avoids blocking a free account when search errors. A paid customer that exists only as Stripe metadata, with no id stored in Firestore, would be missed and would not be cancelled.

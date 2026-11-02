@@ -107,12 +107,24 @@ check('a second live subscription is cancelled instead of replacing the first', 
   assert.strictEqual(invoiceCanBeVoided('uncollectible'), true);
   assert.strictEqual(invoiceCanBeVoided('paid'), false);
   assert.strictEqual(invoiceCanBeVoided('draft'), false);
-  assert.strictEqual(invoiceVoidIsSettled({ code: 'resource_missing' }), true);
-  assert.strictEqual(invoiceVoidIsSettled({
-    type: 'StripeInvalidRequestError',
-    message: 'You can only void invoices with status open or uncollectible.'
-  }), true);
-  assert.strictEqual(invoiceVoidIsSettled({ type: 'StripeConnectionError', message: 'network' }), false);
+  const voidLogs = [];
+  const originalConsoleError = console.error;
+  console.error = (...args) => { voidLogs.push(args); };
+  try {
+    assert.strictEqual(invoiceVoidIsSettled({ code: 'resource_missing' }), true);
+    assert.strictEqual(invoiceVoidIsSettled({
+      type: 'StripeInvalidRequestError',
+      code: 'invoice_not_editable',
+      message: 'You can only void invoices with status open or uncollectible.'
+    }), true);
+    assert.strictEqual(invoiceVoidIsSettled({ type: 'StripeConnectionError', message: 'network' }), false);
+  } finally {
+    console.error = originalConsoleError;
+  }
+  assert.strictEqual(voidLogs.length, 1);
+  assert.strictEqual(voidLogs[0][0], 'invoice void treated as settled');
+  assert.strictEqual(voidLogs[0][1].code, 'invoice_not_editable');
+  assert.strictEqual(voidLogs[0][1].message, 'You can only void invoices with status open or uncollectible.');
 });
 
 check('gemini credit is refunded only for transport, 5xx, and quota failures', () => {

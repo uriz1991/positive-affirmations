@@ -21,7 +21,13 @@ const {
   tombstoneRollbackMatches,
   freshCancelFailureRemovesTombstone,
   pendingDeletionDue,
-  CANCEL_GRACE_MS
+  CANCEL_GRACE_MS,
+  cancelFailureErrorCode,
+  cancelFailureResumesSync,
+  rollbackAfterFailure,
+  attemptIdWrittenByCall,
+  nextDeletionAttempt,
+  DELETION_STUCK_AFTER
 } = require('../functions/account-deletion');
 
 let failures = 0;
@@ -265,6 +271,55 @@ check('a failed first Stripe cancel leaves no tombstone', () => {
     cancelStartedAt: now - CANCEL_GRACE_MS
   }, now), true);
   assert.strictEqual(pendingDeletionDue({ status: 'done', cancelStartedAt: now }, now), false);
+  assert.strictEqual(pendingDeletionDue({ status: 'rollback-failed' }, now), false);
+});
+
+check('a retry of a partial deletion stays pending and does not resume sync', () => {
+  assert.strictEqual(cancelFailureErrorCode(true), 'deletion-pending');
+  assert.strictEqual(cancelFailureErrorCode(false), 'stripe-cancel-failed');
+  assert.strictEqual(cancelFailureResumesSync('deletion-pending'), false);
+  assert.strictEqual(cancelFailureResumesSync('stripe-cancel-failed'), true);
+  assert.strictEqual(freshCancelFailureRemovesTombstone(true, { message: 'stripe-cancel-failed' }, {
+    status: 'pending',
+    attemptId: 'old'
+  }, 'old'), false);
+});
+
+check('a rollback that fails twice is marked so the hourly job skips it', () => {
+  assert.strictEqual(rollbackAfterFailure(0), 'retry');
+  assert.strictEqual(rollbackAfterFailure(1), 'retry');
+  assert.strictEqual(rollbackAfterFailure(2), 'mark-rollback-failed');
+  assert.strictEqual(pendingDeletionDue({ status: 'rollback-failed', attemptId: 'a' }, Date.now()), false);
+});
+
+check('a second call writes its own attempt id and does not inherit the first', () => {
+  const first = 'attempt-first';
+  const second = 'attempt-second';
+  assert.strictEqual(attemptIdWrittenByCall(first, second), second);
+  assert.notStrictEqual(attemptIdWrittenByCall(first, second), first);
+  assert.strictEqual(tombstoneRollbackMatches({
+    status: 'pending',
+    attemptId: first
+  }, second), false);
+  assert.strictEqual(tombstoneRollbackMatches({
+    status: 'pending',
+    attemptId: second
+  }, second), true);
+});
+
+check('the hourly job marks a deletion stuck after 24 failures and keeps counting', () => {
+  const before = nextDeletionAttempt(DELETION_STUCK_AFTER - 2, 'stripe-cancel-failed');
+  assert.strictEqual(before.attempts, 23);
+  assert.strictEqual(before.stuck, false);
+  assert.strictEqual(before.lastError, 'stripe-cancel-failed');
+  const stuck = nextDeletionAttempt(before.attempts, 'deletion-pending');
+  assert.strictEqual(stuck.attempts, 24);
+  assert.strictEqual(stuck.stuck, true);
+  assert.strictEqual(stuck.lastError, 'deletion-pending');
+  const later = nextDeletionAttempt(stuck.attempts, 'deletion-pending');
+  assert.strictEqual(later.attempts, 25);
+  assert.strictEqual(later.stuck, true);
+  assert.strictEqual(nextDeletionAttempt(undefined, '').attempts, 1);
 });
 
 check('a failed deletedAccounts read blocks every candidate send', () => {

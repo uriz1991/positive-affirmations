@@ -2193,6 +2193,7 @@ function clearAccountLocalData() {
 
 function deleteFailureKey(err) {
   const msg = String((err && err.message) || '');
+  if (msg.indexOf('deletion-pending') !== -1) return 'deleteAccountDeletionPending';
   if (msg.indexOf('stripe-cancel-failed') !== -1) return 'deleteAccountStripeCancelFailed';
   if (msg.indexOf('stripe-customer-delete-failed') !== -1) return 'deleteAccountIncomplete';
   if (msg.indexOf('auth-delete-failed') !== -1) return 'deleteAccountIncomplete';
@@ -2258,9 +2259,9 @@ async function handleDeleteAccountConfirmed() {
     if (dialog) dialog.classList.remove('active');
   } catch (err) {
     const key = deleteFailureKey(err);
-    // stripe-cancel-failed rolls back a tombstone this call just created, so
-    // sync can resume. A tombstone that was already pending stays: keep this
-    // device blocked and try the deletion again.
+    // stripe-cancel-failed means this call removed the tombstone it had just
+    // created, so sync can resume. deletion-pending means a deletion was
+    // already underway: keep this device locked. It finishes on its own.
     if (key === 'deleteAccountStripeCancelFailed') {
       try { sessionStorage.removeItem('account-deleted'); } catch {}
       cloudSyncEnabled = !!currentUser;

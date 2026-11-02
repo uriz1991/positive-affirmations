@@ -78,6 +78,11 @@ const {
   freshCancelFailureRemovesTombstone,
   tombstoneRollbackMatches,
   pendingDeletionDue,
+  cancelFailureErrorCode,
+  isStripeCancelFailed,
+  rollbackAfterFailure,
+  attemptIdWrittenByCall,
+  nextDeletionAttempt,
   checkoutDecision,
   invoiceIdFromCheckoutSession,
   refundPlanFromInvoice,
@@ -1325,43 +1330,54 @@ async function finishAccountDeletion(uid, customerHint) {
 
   const stripe = stripeClient();
   const customerIds = await customerIdsForUser(stripe, uid, customerId);
-  const existedBefore = tombSnap.exists;
-  let attemptId = tomb.attemptId || null;
-  if (!existedBefore) {
-    // pending, but younger than the grace window, so the hourly job skips it.
-    // A failed cancel deletes this doc again, so the account stays.
-    attemptId = Date.now().toString(36) + Math.random().toString(36).slice(2);
+  const generatedAttemptId = Date.now().toString(36) + Math.random().toString(36).slice(2);
+  // Create or claim inside one transaction. The attempt id written here is
+  // always this call's, so a second call cannot roll back the first.
+  const claim = await db.runTransaction(async (tx) => {
+    const snap = await tx.get(tombRef);
+    const data = snap.exists ? (snap.data() || {}) : null;
+    if (data && data.status === 'done') return { done: true };
+    const existedBefore = !!data;
+    const attemptId = attemptIdWrittenByCall(data && data.attemptId, generatedAttemptId);
     const startedAt = Date.now();
-    await tombRef.set({
-      deletedAt: new Date(startedAt),
-      status: 'pending',
-      attemptId,
-      cancelStartedAt: startedAt,
-      customerId: customerIds[0] || customerId || null
-    });
-  } else {
-    // Keep the refund cutoff and the customer id. Do not refresh
-    // cancelStartedAt, or the hourly retry would wait out the grace window.
+    if (!existedBefore) {
+      // pending, but younger than the grace window, so the hourly job skips it.
+      // A failed cancel deletes this doc again, so the account stays.
+      tx.set(tombRef, {
+        deletedAt: new Date(startedAt),
+        status: 'pending',
+        attemptId,
+        cancelStartedAt: startedAt,
+        customerId: customerIds[0] || customerId || null
+      });
+      return { existedBefore: false, attemptId };
+    }
+    // Keep the refund cutoff. Do not refresh cancelStartedAt, or the hourly
+    // retry would wait out the grace window.
     const patch = {
-      customerId: customerIds[0] || customerId || tomb.customerId || null
+      attemptId,
+      customerId: customerIds[0] || customerId || data.customerId || null
     };
-    if (!tomb.deletedAt) patch.deletedAt = FieldValue.serverTimestamp();
-    if (tomb.status !== 'pending') patch.status = 'pending';
-    await tombRef.set(patch, { merge: true });
-  }
+    if (!data.deletedAt) patch.deletedAt = new Date(startedAt);
+    if (data.status !== 'pending') patch.status = 'pending';
+    tx.set(tombRef, patch, { merge: true });
+    return { existedBefore: true, attemptId };
+  });
+  if (claim.done) return { deleted: true, status: 'done' };
+  const existedBefore = claim.existedBefore;
+  const attemptId = claim.attemptId;
   try {
     for (const id of customerIds) {
       await cancelCustomerSubscriptions(stripe, id, uid);
     }
   } catch (err) {
+    if (isStripeCancelFailed(err) && existedBefore) {
+      throw new HttpsError('failed-precondition', cancelFailureErrorCode(true));
+    }
     if (freshCancelFailureRemovesTombstone(existedBefore, err, { status: 'pending', attemptId }, attemptId)) {
-      try {
-        await rollBackFreshTombstone(tombRef, attemptId);
-      } catch (rollbackErr) {
-        logger.error('Could not remove the deletion tombstone after Stripe cancel failed', {
-          uid,
-          message: rollbackErr && rollbackErr.message
-        });
+      const outcome = await rollBackFreshTombstone(tombRef, attemptId, uid);
+      if (outcome === 'kept') {
+        throw new HttpsError('failed-precondition', cancelFailureErrorCode(true));
       }
     }
     throw err;
@@ -1418,13 +1434,66 @@ exports.deleteAccount = onCall({ secrets: [stripeSecretKey, referralHashKey] }, 
   return finishAccountDeletion(uid, subSnap.data()?.stripeCustomerId || null);
 });
 
-async function rollBackFreshTombstone(tombRef, attemptId) {
+async function deleteMatchingTombstone(tombRef, attemptId) {
+  let outcome = 'kept';
   await db.runTransaction(async (tx) => {
+    outcome = 'kept';
+    const snap = await tx.get(tombRef);
+    if (!snap.exists) {
+      outcome = 'removed';
+      return;
+    }
+    if (!tombstoneRollbackMatches(snap.data(), attemptId)) return;
+    tx.delete(tombRef);
+    outcome = 'removed';
+  });
+  return outcome;
+}
+
+async function markRollbackFailed(tombRef, attemptId) {
+  let marked = false;
+  await db.runTransaction(async (tx) => {
+    marked = false;
     const snap = await tx.get(tombRef);
     if (!snap.exists) return;
     if (!tombstoneRollbackMatches(snap.data(), attemptId)) return;
-    tx.delete(tombRef);
+    tx.set(tombRef, { status: 'rollback-failed' }, { merge: true });
+    marked = true;
   });
+  return marked;
+}
+
+async function rollBackFreshTombstone(tombRef, attemptId, uid) {
+  let failedTries = 0;
+  while (rollbackAfterFailure(failedTries) === 'retry') {
+    try {
+      return await deleteMatchingTombstone(tombRef, attemptId);
+    } catch (err) {
+      failedTries += 1;
+      if (rollbackAfterFailure(failedTries) === 'retry') {
+        logger.warn('deletion tombstone rollback failed; retrying once', {
+          uid,
+          message: err && err.message
+        });
+        continue;
+      }
+      logger.error('deletion tombstone rollback-failed', {
+        uid,
+        message: err && err.message
+      });
+      try {
+        const marked = await markRollbackFailed(tombRef, attemptId);
+        return marked ? 'rollback-failed' : 'kept';
+      } catch (markErr) {
+        logger.error('could not mark deletion tombstone rollback-failed', {
+          uid,
+          message: markErr && markErr.message
+        });
+        return 'rollback-failed';
+      }
+    }
+  }
+  return 'kept';
 }
 
 exports.finishPendingAccountDeletions = onSchedule({
@@ -1441,7 +1510,27 @@ exports.finishPendingAccountDeletions = onSchedule({
     try {
       await finishAccountDeletion(tomb.id, tomb.data()?.customerId || null);
     } catch (err) {
-      logger.error('Pending account deletion did not finish', { uid: tomb.id, message: err.message });
+      const update = nextDeletionAttempt(tomb.get('attempts'), err && err.message);
+      try {
+        await tomb.ref.set({
+          attempts: update.attempts,
+          lastError: update.lastError
+        }, { merge: true });
+      } catch (writeErr) {
+        logger.error('Could not record a deletion attempt', {
+          uid: tomb.id,
+          message: writeErr && writeErr.message
+        });
+      }
+      if (update.stuck) {
+        logger.error('deletion-stuck', {
+          uid: tomb.id,
+          attempts: update.attempts,
+          lastError: update.lastError
+        });
+      } else {
+        logger.error('Pending account deletion did not finish', { uid: tomb.id, message: err.message });
+      }
     }
   }
 });
