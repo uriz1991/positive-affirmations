@@ -75,6 +75,8 @@ async function main() {
     });
     await seed('deletedAccounts/gone', { status: 'done' });
     await check('tombstone done blocks merge write', () => assertFails(setDoc(doc(as('gone'), 'users/gone'), sync(), { merge: true })));
+    await seed('deletedAccounts/rollback', { status: 'rollback-failed', attemptId: 'attempt-1' });
+    await check('tombstone rollback-failed blocks merge write', () => assertFails(setDoc(doc(as('rollback'), 'users/rollback'), sync(), { merge: true })));
     await check('unauthenticated read of stats allowed', () => assertSucceeds(getDoc(doc(env.unauthenticatedContext().firestore(), 'stats/popular-affirmations'))));
     await check('usage/referrals unreadable by owner', () => assertFails(getDoc(doc(as('u1'), 'usage/u1'))));
   } finally {

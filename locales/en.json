@@ -191,6 +191,7 @@
   "deleteAccountHelp": "How account deletion works",
   "deleteAccountStripeCancelFailed": "Could not cancel the Stripe subscription. Nothing was deleted. Try again, or email Uriz1991@gmail.com",
   "deleteAccountDeletionPending": "Deletion has not finished yet. It will finish automatically.",
+  "deleteAccountRollbackFailed": "Deletion stopped. Try again in a few minutes.",
   "deleteAccountIncomplete": "Deletion did not finish, but you are still signed in. Tap Delete account again to continue.",
   "deleteAccountUnavailable": "Deletion did not finish. Try again. Another tap continues from where it stopped."
 }

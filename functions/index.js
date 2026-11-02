@@ -79,6 +79,8 @@ const {
   tombstoneRollbackMatches,
   pendingDeletionDue,
   cancelFailureErrorCode,
+  errorCodeForRollbackOutcome,
+  rollbackFailedReleaseMatches,
   isStripeCancelFailed,
   rollbackAfterFailure,
   attemptIdWrittenByCall,
@@ -1376,9 +1378,7 @@ async function finishAccountDeletion(uid, customerHint) {
     }
     if (freshCancelFailureRemovesTombstone(existedBefore, err, { status: 'pending', attemptId }, attemptId)) {
       const outcome = await rollBackFreshTombstone(tombRef, attemptId, uid);
-      if (outcome === 'kept') {
-        throw new HttpsError('failed-precondition', cancelFailureErrorCode(true));
-      }
+      throw new HttpsError('failed-precondition', errorCodeForRollbackOutcome(outcome));
     }
     throw err;
   }
@@ -1431,8 +1431,57 @@ exports.deleteAccount = onCall({ secrets: [stripeSecretKey, referralHashKey] }, 
   }
   const uid = request.auth.uid;
   const subSnap = await db.doc('subscriptions/' + uid).get();
-  return finishAccountDeletion(uid, subSnap.data()?.stripeCustomerId || null);
+  try {
+    return await finishAccountDeletion(uid, subSnap.data()?.stripeCustomerId || null);
+  } catch (err) {
+    await noteDeletionAttempt(uid, err);
+    throw err;
+  }
 });
+
+async function noteDeletionAttempt(uid, err) {
+  const ref = db.doc('deletedAccounts/' + uid);
+  let update = null;
+  try {
+    await db.runTransaction(async (tx) => {
+      update = null;
+      const snap = await tx.get(ref);
+      if (!snap.exists) return;
+      update = nextDeletionAttempt(snap.get('attempts'), err);
+      tx.set(ref, {
+        attempts: update.attempts,
+        lastError: update.lastError
+      }, { merge: true });
+    });
+  } catch (writeErr) {
+    logger.error('Could not record a deletion attempt', {
+      uid,
+      message: writeErr && writeErr.message
+    });
+    return null;
+  }
+  if (update && update.stuck) {
+    logger.error('deletion-stuck', {
+      uid,
+      attempts: update.attempts,
+      lastError: update.lastError
+    });
+  }
+  return update;
+}
+
+async function releaseRollbackFailedTombstone(tombRef, attemptId) {
+  let released = false;
+  await db.runTransaction(async (tx) => {
+    released = false;
+    const snap = await tx.get(tombRef);
+    if (!snap.exists) return;
+    if (!rollbackFailedReleaseMatches(snap.data(), attemptId)) return;
+    tx.delete(tombRef);
+    released = true;
+  });
+  return released;
+}
 
 async function deleteMatchingTombstone(tombRef, attemptId) {
   let outcome = 'kept';
@@ -1489,7 +1538,8 @@ async function rollBackFreshTombstone(tombRef, attemptId, uid) {
           uid,
           message: markErr && markErr.message
         });
-        return 'rollback-failed';
+        // The doc is still pending. The hourly job finishes that deletion.
+        return 'kept';
       }
     }
   }
@@ -1501,7 +1551,26 @@ exports.finishPendingAccountDeletions = onSchedule({
   secrets: [stripeSecretKey, referralHashKey]
 }, async () => {
   const now = Date.now();
-  const pending = await db.collection('deletedAccounts').where('status', '==', 'pending').get();
+  const [pending, rollbackFailed] = await Promise.all([
+    db.collection('deletedAccounts').where('status', '==', 'pending').get(),
+    db.collection('deletedAccounts').where('status', '==', 'rollback-failed').get()
+  ]);
+  for (const tomb of rollbackFailed.docs) {
+    try {
+      const released = await releaseRollbackFailedTombstone(tomb.ref, tomb.get('attemptId'));
+      if (released) {
+        logger.info('released rollback-failed deletion tombstone; account was not deleted', {
+          uid: tomb.id
+        });
+      }
+    } catch (err) {
+      const update = await noteDeletionAttempt(tomb.id, err);
+      logger.error('Could not release a rollback-failed deletion tombstone', {
+        uid: tomb.id,
+        message: update ? update.lastError : ''
+      });
+    }
+  }
   const due = pending.docs.filter((tomb) => pendingDeletionDue({
     status: tomb.get('status'),
     cancelStartedAt: tomb.get('cancelStartedAt')
@@ -1510,26 +1579,12 @@ exports.finishPendingAccountDeletions = onSchedule({
     try {
       await finishAccountDeletion(tomb.id, tomb.data()?.customerId || null);
     } catch (err) {
-      const update = nextDeletionAttempt(tomb.get('attempts'), err && err.message);
-      try {
-        await tomb.ref.set({
-          attempts: update.attempts,
-          lastError: update.lastError
-        }, { merge: true });
-      } catch (writeErr) {
-        logger.error('Could not record a deletion attempt', {
+      const update = await noteDeletionAttempt(tomb.id, err);
+      if (!update || !update.stuck) {
+        logger.error('Pending account deletion did not finish', {
           uid: tomb.id,
-          message: writeErr && writeErr.message
+          message: update ? update.lastError : ''
         });
-      }
-      if (update.stuck) {
-        logger.error('deletion-stuck', {
-          uid: tomb.id,
-          attempts: update.attempts,
-          lastError: update.lastError
-        });
-      } else {
-        logger.error('Pending account deletion did not finish', { uid: tomb.id, message: err.message });
       }
     }
   }

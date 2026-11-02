@@ -96,7 +96,27 @@ function cancelFailureResumesSync(code) {
   return code === 'stripe-cancel-failed';
 }
 
-// One retry, then stop. A second failure is marked so the hourly job skips it.
+// removed: tombstone is gone, sync may resume.
+// rollback-failed: the marker was written. The client stays locked until the
+// hourly job deletes that doc. Nothing else was deleted.
+// kept: the doc is still pending, including when the marker write failed.
+// The hourly job will finish the deletion.
+function errorCodeForRollbackOutcome(outcome) {
+  if (outcome === 'rollback-failed') return 'deletion-rollback-failed';
+  if (outcome === 'removed') return 'stripe-cancel-failed';
+  return 'deletion-pending';
+}
+
+// The hourly job may delete this doc only. The account data was not removed.
+function rollbackFailedReleaseMatches(current, attemptId) {
+  return !!(current
+    && current.status === 'rollback-failed'
+    && attemptId
+    && current.attemptId === attemptId);
+}
+
+// One retry, then stop. A second failure is marked rollback-failed. The
+// hourly job deletes that doc instead of finishing the account deletion.
 const ROLLBACK_TRIES = 2;
 
 function rollbackAfterFailure(failedTries) {
@@ -110,13 +130,30 @@ function attemptIdWrittenByCall(_existingAttemptId, generatedAttemptId) {
 }
 
 const DELETION_STUCK_AFTER = 24;
+const DELETION_ERROR_MAX = 200;
 
-function nextDeletionAttempt(attempts, errorMessage) {
+function sanitizedDeletionError(err) {
+  const code = err && typeof err === 'object'
+    ? String(err.code || (err.raw && err.raw.code) || '')
+    : '';
+  const message = err && typeof err === 'object'
+    ? String(err.message || '')
+    : String(err || '');
+  const cleaned = message
+    .replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, '[redacted]')
+    .replace(/\+?\d[\d\s().-]{8,}\d/g, '[redacted]')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const combined = (code ? code + ': ' + cleaned : cleaned).trim();
+  return combined.slice(0, DELETION_ERROR_MAX);
+}
+
+function nextDeletionAttempt(attempts, err) {
   const prev = Number(attempts);
   const next = (Number.isFinite(prev) && prev > 0 ? Math.floor(prev) : 0) + 1;
   return {
     attempts: next,
-    lastError: String(errorMessage || ''),
+    lastError: sanitizedDeletionError(err),
     stuck: next >= DELETION_STUCK_AFTER
   };
 }
@@ -248,10 +285,14 @@ module.exports = {
   pendingDeletionDue,
   cancelFailureErrorCode,
   cancelFailureResumesSync,
+  errorCodeForRollbackOutcome,
+  rollbackFailedReleaseMatches,
   ROLLBACK_TRIES,
   rollbackAfterFailure,
   attemptIdWrittenByCall,
   DELETION_STUCK_AFTER,
+  DELETION_ERROR_MAX,
+  sanitizedDeletionError,
   nextDeletionAttempt,
   checkoutDecision,
   nextDeletionStep,

@@ -191,6 +191,7 @@
   "deleteAccountHelp": "Comment supprimer un compte",
   "deleteAccountStripeCancelFailed": "L'abonnement Stripe n'a pas pu être annulé. Rien n'a été supprimé. Réessayez, ou écrivez à Uriz1991@gmail.com",
   "deleteAccountDeletionPending": "La suppression n'est pas encore terminée. Elle se terminera automatiquement.",
+  "deleteAccountRollbackFailed": "La suppression s'est arrêtée. Réessayez dans quelques minutes.",
   "deleteAccountIncomplete": "La suppression n'est pas terminée, mais vous êtes toujours connecté. Appuyez encore sur Supprimer le compte pour continuer.",
   "deleteAccountUnavailable": "La suppression n'est pas terminée. Réessayez. Un nouvel appui reprend là où ça s'est arrêté."
 }

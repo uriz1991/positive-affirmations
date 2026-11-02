@@ -256,6 +256,8 @@
   "deleteAccountStripeCancelFailed_f": "ביטול המנוי ב-Stripe נכשל. שום דבר לא נמחק. נסי שוב, או כתבי ל-Uriz1991@gmail.com",
   "deleteAccountDeletionPending": "המחיקה עדיין לא הסתיימה, והיא תסתיים אוטומטית.",
   "deleteAccountDeletionPending_f": "המחיקה עדיין לא הסתיימה, והיא תסתיים אוטומטית.",
+  "deleteAccountRollbackFailed": "המחיקה נעצרה. נסו שוב בעוד כמה דקות.",
+  "deleteAccountRollbackFailed_f": "המחיקה נעצרה. נסו שוב בעוד כמה דקות.",
   "deleteAccountIncomplete": "המחיקה לא הסתיימה, אבל ההתחברות עדיין פעילה. לחץ שוב על מחק חשבון כדי להמשיך.",
   "deleteAccountIncomplete_f": "המחיקה לא הסתיימה, אבל ההתחברות עדיין פעילה. לחצי שוב על מחק חשבון כדי להמשיך.",
   "deleteAccountUnavailable": "לא הצלחנו להשלים את המחיקה. נסה שוב. לחיצה נוספת ממשיכה מהשלב שעצר.",

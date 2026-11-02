@@ -24,10 +24,14 @@ const {
   CANCEL_GRACE_MS,
   cancelFailureErrorCode,
   cancelFailureResumesSync,
+  errorCodeForRollbackOutcome,
+  rollbackFailedReleaseMatches,
   rollbackAfterFailure,
   attemptIdWrittenByCall,
   nextDeletionAttempt,
-  DELETION_STUCK_AFTER
+  DELETION_STUCK_AFTER,
+  DELETION_ERROR_MAX,
+  sanitizedDeletionError
 } = require('../functions/account-deletion');
 
 let failures = 0;
@@ -278,6 +282,7 @@ check('a retry of a partial deletion stays pending and does not resume sync', ()
   assert.strictEqual(cancelFailureErrorCode(true), 'deletion-pending');
   assert.strictEqual(cancelFailureErrorCode(false), 'stripe-cancel-failed');
   assert.strictEqual(cancelFailureResumesSync('deletion-pending'), false);
+  assert.strictEqual(cancelFailureResumesSync('deletion-rollback-failed'), false);
   assert.strictEqual(cancelFailureResumesSync('stripe-cancel-failed'), true);
   assert.strictEqual(freshCancelFailureRemovesTombstone(true, { message: 'stripe-cancel-failed' }, {
     status: 'pending',
@@ -285,11 +290,37 @@ check('a retry of a partial deletion stays pending and does not resume sync', ()
   }, 'old'), false);
 });
 
-check('a rollback that fails twice is marked so the hourly job skips it', () => {
+check('a rollback that fails twice is marked and does not resume sync', () => {
   assert.strictEqual(rollbackAfterFailure(0), 'retry');
   assert.strictEqual(rollbackAfterFailure(1), 'retry');
   assert.strictEqual(rollbackAfterFailure(2), 'mark-rollback-failed');
+  assert.strictEqual(errorCodeForRollbackOutcome('rollback-failed'), 'deletion-rollback-failed');
+  assert.strictEqual(cancelFailureResumesSync(errorCodeForRollbackOutcome('rollback-failed')), false);
   assert.strictEqual(pendingDeletionDue({ status: 'rollback-failed', attemptId: 'a' }, Date.now()), false);
+});
+
+check('the hourly job deletes a rollback-failed tombstone only when the attempt id is unchanged', () => {
+  const attemptId = 'attempt-1';
+  assert.strictEqual(rollbackFailedReleaseMatches({
+    status: 'rollback-failed',
+    attemptId
+  }, attemptId), true);
+  assert.strictEqual(rollbackFailedReleaseMatches({
+    status: 'rollback-failed',
+    attemptId: 'attempt-2'
+  }, attemptId), false);
+  assert.strictEqual(rollbackFailedReleaseMatches({
+    status: 'pending',
+    attemptId
+  }, attemptId), false);
+  assert.strictEqual(rollbackFailedReleaseMatches(null, attemptId), false);
+});
+
+check('a failed rollback-failed write stays pending for the hourly deletion', () => {
+  assert.strictEqual(errorCodeForRollbackOutcome('kept'), 'deletion-pending');
+  assert.strictEqual(cancelFailureResumesSync(errorCodeForRollbackOutcome('kept')), false);
+  assert.strictEqual(errorCodeForRollbackOutcome('removed'), 'stripe-cancel-failed');
+  assert.strictEqual(cancelFailureResumesSync(errorCodeForRollbackOutcome('removed')), true);
 });
 
 check('a second call writes its own attempt id and does not inherit the first', () => {
@@ -320,6 +351,15 @@ check('the hourly job marks a deletion stuck after 24 failures and keeps countin
   assert.strictEqual(later.attempts, 25);
   assert.strictEqual(later.stuck, true);
   assert.strictEqual(nextDeletionAttempt(undefined, '').attempts, 1);
+  const noisy = nextDeletionAttempt(0, {
+    code: 'failed-precondition',
+    message: 'stripe-cancel-failed for user@example.com ' + 'x'.repeat(400)
+  });
+  assert.ok(noisy.lastError.length <= DELETION_ERROR_MAX);
+  assert.ok(noisy.lastError.startsWith('failed-precondition: '));
+  assert.strictEqual(noisy.lastError.includes('user@example.com'), false);
+  assert.ok(noisy.lastError.includes('[redacted]'));
+  assert.strictEqual(sanitizedDeletionError('stripe-cancel-failed'), 'stripe-cancel-failed');
 });
 
 check('a failed deletedAccounts read blocks every candidate send', () => {
