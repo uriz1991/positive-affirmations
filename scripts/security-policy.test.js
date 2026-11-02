@@ -7,6 +7,7 @@ const {
   ALLOWED_PRICE_IDS,
   isAllowedPrice,
   trialEligible,
+  duplicateSubscriptionAction,
   checkoutBlocked,
   CHECKOUT_SESSION_TTL_MS,
   checkoutExpiresAtSeconds,
@@ -21,9 +22,14 @@ const {
   validReferrerUid,
   isNewAccount,
   nextBonusUntil,
-  grantedBonusDays
+  grantedBonusDays,
+  referralIdentityKeys,
+  referralMonth,
+  referralRedeemPlan,
+  REFERRALS_PER_MONTH
 } = require('../functions/referral-policy');
 const { DAILY_GEN_LIMIT, claimQuota, releaseCount } = require('../functions/usage-quota');
+const { clipPlanInput, geminiFailureRefundable, GOAL_MAX, JOURNAL_ENTRY_MAX } = require('../functions/prompt-limits');
 const {
   catalogDisplayText,
   countCatalogFavorites,
@@ -74,9 +80,75 @@ check('a trial is offered once, and a referral bonus does not use it up', () => 
   assert.strictEqual(trialEligible({ bonusProUntil: 1 }), true);
   assert.strictEqual(trialEligible({ trialUsed: true, bonusProUntil: 1 }), false);
   assert.strictEqual(trialEligible({ stripeCustomerId: 'cus_1' }), false);
+  assert.strictEqual(trialEligible({ stripeCustomerId: 'cus_new', stripeCustomerReserved: true }), true);
   assert.strictEqual(trialEligible({ stripeSubscriptionId: 'sub_1' }), false);
   assert.strictEqual(trialEligible({ status: 'canceled' }), false);
   assert.strictEqual(trialEligible({ isPro: true }), false);
+});
+
+check('a second live subscription is cancelled instead of replacing the first', () => {
+  const live = { stripeSubscriptionId: 'sub_first', status: 'active', isPro: true };
+  assert.strictEqual(duplicateSubscriptionAction(live, { id: 'sub_first', status: 'active' }), 'apply');
+  assert.strictEqual(duplicateSubscriptionAction(live, { id: 'sub_second', status: 'active' }), 'cancel-incoming');
+  assert.strictEqual(duplicateSubscriptionAction(live, { id: 'sub_second', status: 'trialing' }), 'cancel-incoming');
+  assert.strictEqual(duplicateSubscriptionAction(live, { id: 'sub_second', status: 'canceled' }), 'ignore');
+  assert.strictEqual(duplicateSubscriptionAction(
+    { stripeSubscriptionId: 'sub_old', status: 'canceled', isPro: false },
+    { id: 'sub_new', status: 'active' }
+  ), 'apply');
+});
+
+check('gemini credit is refunded only for transport, 5xx, and quota failures', () => {
+  assert.strictEqual(geminiFailureRefundable({ status: 500 }), true);
+  assert.strictEqual(geminiFailureRefundable({ status: 429, message: 'quota' }), true);
+  assert.strictEqual(geminiFailureRefundable({ code: 'ECONNRESET' }), true);
+  assert.strictEqual(geminiFailureRefundable({ message: 'fetch failed' }), true);
+  assert.strictEqual(geminiFailureRefundable({ status: 400, message: 'bad request' }), false);
+  assert.strictEqual(geminiFailureRefundable({ status: 200 }), false);
+  assert.strictEqual(geminiFailureRefundable(new Error('Could not parse')), false);
+  const clipped = clipPlanInput({
+    goalData: { goal: 'x'.repeat(GOAL_MAX + 50), steps: [{ text: 'y'.repeat(400), done: true }] },
+    journal: ['z'.repeat(JOURNAL_ENTRY_MAX + 20), 'kept']
+  });
+  assert.strictEqual(clipped.goal.length, GOAL_MAX);
+  assert.ok(clipped.completedSteps[0].length <= 300);
+  assert.ok(clipped.journal.every((line) => line.length <= JOURNAL_ENTRY_MAX));
+});
+
+check('one Google account cannot redeem again, and a referrer is capped per month', () => {
+  const record = {
+    uid: 'firebase-uid-1',
+    email: 'Person@Example.com',
+    providerData: [{ providerId: 'google.com', uid: 'google-subject', email: 'Person@Example.com' }]
+  };
+  const again = referralIdentityKeys(record);
+  assert.deepStrictEqual(again, referralIdentityKeys(record));
+  assert.ok(again.length >= 1);
+  assert.notStrictEqual(again[0], 'google-subject');
+  const deleted = referralIdentityKeys({
+    uid: 'firebase-uid-2',
+    email: 'person@example.com',
+    providerData: [{ providerId: 'google.com', uid: 'google-subject', email: 'person@example.com' }]
+  });
+  assert.deepStrictEqual(deleted, again);
+  assert.strictEqual(referralMonth(Date.UTC(2026, 10, 2)), '2026-11');
+  assert.strictEqual(referralRedeemPlan({
+    identitiesExist: true, redemptionExists: false, legacyReferrer: '', monthData: null, month: '2026-11'
+  }).action, 'already');
+  assert.strictEqual(referralRedeemPlan({
+    identitiesExist: false,
+    redemptionExists: false,
+    legacyReferrer: '',
+    monthData: { month: '2026-11', count: REFERRALS_PER_MONTH },
+    month: '2026-11'
+  }).action, 'capped');
+  assert.strictEqual(referralRedeemPlan({
+    identitiesExist: false,
+    redemptionExists: false,
+    legacyReferrer: '',
+    monthData: { month: '2026-10', count: 3 },
+    month: '2026-11'
+  }).action, 'grant');
 });
 
 check('an open subscription blocks another checkout; a canceled one does not', () => {
@@ -336,6 +408,9 @@ check('callable errors do not echo Stripe or Gemini messages', () => {
   assert.strictEqual(src.includes('checkoutExpiresAtSeconds(now)'), false);
   assert.ok(src.includes('pendingCheckoutExpiresAt: (session.expires_at || expiresAt) * 1000'));
   assert.ok(src.includes('pendingCheckoutSessionId: session.id'));
+  assert.ok(src.includes('if (reservedQuota && refundQuota) await releaseQuota'));
+  assert.ok(src.includes("idempotencyKey: 'customer-' + uid"));
+  assert.ok(src.includes('stripe.subscriptions.retrieve(subId)'));
 });
 
 if (failures) {

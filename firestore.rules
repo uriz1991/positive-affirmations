@@ -28,20 +28,54 @@ service cloud.firestore {
               'fcmTokens', 'fcmTokenBound'];
     }
 
+    function listWithin(list, maxItems) {
+      return list is list && list.size() <= maxItems;
+    }
+
+    // goal is one string, so the rules can cap it. List items are clipped
+    // again before they are sent to Gemini; rules cap how many there are.
+    function goalOk(data) {
+      return data == null
+        || (data is map
+          && (!('goal' in data) || (data.goal is string && data.goal.size() <= 500))
+          && (!('steps' in data) || (data.steps is list && data.steps.size() <= 20)));
+    }
+
     // Checked only for keys this write touches, so an old value in a field
     // the write does not change cannot block the sync.
     function validUserShape(d, k) {
-      return (!('favorites' in k) || d.favorites is list)
-        && (!('journal' in k) || d.journal is list)
-        && (!('personalAffirmations' in k) || d.personalAffirmations is list)
-        && (!('reminders' in k) || d.reminders is list)
-        && (!('fcmTokens' in k) || (d.fcmTokens is list && d.fcmTokens.size() <= 20))
+      return (!('favorites' in k) || listWithin(d.favorites, 200))
+        && (!('journal' in k) || listWithin(d.journal, 100))
+        && (!('personalAffirmations' in k) || listWithin(d.personalAffirmations, 50))
+        && (!('reminders' in k) || listWithin(d.reminders, 30))
+        && (!('fcmTokens' in k) || d.fcmTokens is list)
         && (!('fcmTokenBound' in k) || d.fcmTokenBound is map)
-        && (!('goalData' in k) || d.goalData == null || d.goalData is map)
+        && (!('goalData' in k) || goalOk(d.goalData))
         && (!('timezone' in k) || (d.timezone is string && d.timezone.size() <= 64))
         && (!('addressForm' in k) || d.addressForm in ['m', 'f'])
         && (!('language' in k) || d.language in ['he', 'en', 'fr', 'es'])
         && (!('updatedAt' in k) || d.updatedAt is number);
+    }
+
+    function fcmTokensOkOnCreate(d) {
+      return !('fcmTokens' in d) || (d.fcmTokens is list && d.fcmTokens.size() <= 20);
+    }
+
+    // A list that is already over 20 must still be allowed to shrink.
+    // Growing it further stays denied.
+    function fcmTokensOkOnUpdate() {
+      return !('fcmTokens' in request.resource.data.diff(resource.data).affectedKeys())
+        || (
+          request.resource.data.fcmTokens is list
+          && (
+            request.resource.data.fcmTokens.size() <= 20
+            || (
+              'fcmTokens' in resource.data
+              && resource.data.fcmTokens is list
+              && request.resource.data.fcmTokens.size() < resource.data.fcmTokens.size()
+            )
+          )
+        );
     }
 
     match /users/{userId} {
@@ -50,12 +84,14 @@ service cloud.firestore {
       allow create: if signedInAs(userId)
         && notDeleted(userId)
         && request.resource.data.keys().hasOnly(clientUserFields())
-        && validUserShape(request.resource.data, request.resource.data.keys().toSet());
+        && validUserShape(request.resource.data, request.resource.data.keys().toSet())
+        && fcmTokensOkOnCreate(request.resource.data);
 
       allow update: if signedInAs(userId)
         && notDeleted(userId)
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(clientUserFields())
-        && validUserShape(request.resource.data, request.resource.data.diff(resource.data).affectedKeys());
+        && validUserShape(request.resource.data, request.resource.data.diff(resource.data).affectedKeys())
+        && fcmTokensOkOnUpdate();
 
       // deleteAccount uses the Admin SDK. A client delete would wipe
       // server-written fields that still sit on this doc.
@@ -93,6 +129,15 @@ service cloud.firestore {
     }
 
     match /usage/{uid} {
+      allow read, write: if false;
+    }
+
+    // Hashed provider identity. Survives account deletion. Server only.
+    match /referralIdentities/{id} {
+      allow read, write: if false;
+    }
+
+    match /referralMonthly/{uid} {
       allow read, write: if false;
     }
   }

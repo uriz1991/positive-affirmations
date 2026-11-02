@@ -18,7 +18,11 @@ Code changes for the 2026-11-02 review are in the repo. Nothing in this file has
 
 5. **Popular list.** The next `aggregatePopularAffirmations` run (daily) overwrites `stats/popular-affirmations` with catalog lines only. Until that run, the website ignores popular entries that are not in the loaded catalog. Lines already written into `generated-affirmations` while personal favorites were in the prompt are not deleted by this change. Delete that collection in the console if those documents should not remain public.
 
-6. **Trials.** Checkout grants `trial_period_days: 7` only when `subscriptions/{uid}` has no `trialUsed`, Stripe customer, subscription id, status, or `isPro`. Creating the Checkout session sets `trialUsed`. Closing the tab uses up the trial; a Stripe API failure rolls it back. Existing customers with `stripeCustomerId` do not get another trial. No backfill is required for them.
+6. **Trials.** Checkout grants `trial_period_days: 7` only when the account has not already had one. Opening Checkout does not set `trialUsed`. The webhook sets it when a subscription exists. A customer id written at reservation time is marked `stripeCustomerReserved` and still gets the trial. An older customer id without that flag does not. The Checkout session expires at least 31 minutes after it is created.
+
+7. **Reconcile existing Pro docs with Stripe.** Subscriptions that were marked `isPro: true` before status webhooks existed stay Pro until Stripe sends a new event, and an unpaid subscription may never send one. After the functions deploy, the owner can run `scripts/reconcile-pro-subscriptions.js`. It lists `subscriptions` where `isPro` is true and compares each `stripeSubscriptionId` with the live Stripe status. The default is a dry run and writes nothing. `--apply` sets `isPro` false when Stripe is not `active` or `trialing`. Do not run it from CI or from the deploy workflow. It needs `STRIPE_SECRET_KEY` and Application Default Credentials, and the functions dependencies installed.
+
+8. **Always pass `--only`.** `firebase.json` now includes `firestore.rules`. A bare `firebase deploy` publishes the rules and the functions together. Use `firebase deploy --only functions` or `firebase deploy --only firestore:rules`. The GitHub workflow already passes `--only functions`.
 
 ## Runtime service accounts
 

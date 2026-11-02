@@ -20,11 +20,26 @@ function isAllowedPrice(priceId) {
 function trialEligible(sub) {
   if (!sub) return true;
   if (sub.trialUsed) return false;
-  if (sub.stripeCustomerId) return false;
   if (sub.stripeSubscriptionId) return false;
   if (sub.status) return false;
   if (sub.isPro) return false;
+  // Reservation stores stripeCustomerId before payment and sets
+  // stripeCustomerReserved. A customer id without that flag was written by
+  // an earlier webhook, so the trial was already offered.
+  if (sub.stripeCustomerId && !sub.stripeCustomerReserved) return false;
   return true;
+}
+
+// A second live subscription must not replace the one we already track.
+// cancel-incoming: cancel and refund the subscription this event is about.
+// ignore: a different subscription's past_due/canceled event must not clear Pro.
+function duplicateSubscriptionAction(existing, incoming) {
+  if (!existing || !incoming || !incoming.id || !existing.stripeSubscriptionId) return 'apply';
+  if (existing.stripeSubscriptionId === incoming.id) return 'apply';
+  const existingOpen = existing.isPro === true || existing.status === 'active' || existing.status === 'trialing';
+  if (!existingOpen) return 'apply';
+  if (incoming.status === 'active' || incoming.status === 'trialing') return 'cancel-incoming';
+  return 'ignore';
 }
 
 // A second checkout while a subscription is still open double-bills.
@@ -134,6 +149,7 @@ module.exports = {
   CHECKOUT_CLAIM_TTL_MS,
   isAllowedPrice,
   trialEligible,
+  duplicateSubscriptionAction,
   checkoutBlocked,
   checkoutExpiresAtSeconds,
   openPendingCheckout,

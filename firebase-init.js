@@ -76,6 +76,30 @@ function fcmBoundPatch(existing, nextTokens, newKey, select) {
   return Object.keys(patch).length ? patch : null;
 }
 
+function clipText(value, max) {
+  return typeof value === 'string' && value.length > max ? value.slice(0, max) : value;
+}
+
+function clipStringList(list, maxItems, maxLen) {
+  if (!Array.isArray(list)) return list;
+  return list.slice(0, maxItems).map((item) => clipText(item, maxLen));
+}
+
+function clipGoalData(goalData) {
+  if (goalData == null || typeof goalData !== 'object' || Array.isArray(goalData)) return goalData;
+  const next = Object.assign({}, goalData);
+  if (typeof next.goal === 'string') next.goal = clipText(next.goal, 500);
+  if (Array.isArray(next.steps)) {
+    next.steps = next.steps.slice(0, 20).map((step) => {
+      if (!step || typeof step !== 'object') return step;
+      const copy = Object.assign({}, step);
+      copy.text = clipText(copy.text, 300);
+      return copy;
+    });
+  }
+  return next;
+}
+
 function fallbackFcmTokens(existing, token, limit) {
   const list = (Array.isArray(existing) ? existing : []).filter((item) => typeof item === 'string' && item);
   if (!token || list.indexOf(token) !== -1) return list.slice(0, limit);
@@ -120,7 +144,12 @@ window.AppAuth = {
       if (!data || !Object.prototype.hasOwnProperty.call(data, key)) return;
       // null is not a map, and one null field used to reject the whole sync.
       if (key === 'goalData' && data[key] == null) return;
-      payload[key] = data[key];
+      if (key === 'goalData') payload.goalData = clipGoalData(data.goalData);
+      else if (key === 'journal') payload.journal = clipStringList(data.journal, 100, 300);
+      else if (key === 'favorites') payload.favorites = clipStringList(data.favorites, 200, 500);
+      else if (key === 'personalAffirmations') payload.personalAffirmations = clipStringList(data.personalAffirmations, 50, 500);
+      else if (key === 'reminders') payload.reminders = Array.isArray(data.reminders) ? data.reminders.slice(0, 30) : data.reminders;
+      else payload[key] = data[key];
     });
     await setDoc(doc(db, 'users', uid), payload, { merge: true });
   },
