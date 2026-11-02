@@ -179,6 +179,17 @@
     </div>
   </div>
 
+  <div class="dialog-backdrop" id="deleteAccountDialog">
+    <div class="dialog delete-account-dialog">
+      <h3 data-i18n="deleteAccountTitle">למחוק את החשבון?</h3>
+      <p data-i18n="deleteAccountBody">יימחקו היעד, היומן, המועדפים, המשפטים האישיים, התזכורות ותוכנית ה-AI שנשמרו בחשבון. ההתחברות עם Google תימחק. אי אפשר לבטל.</p>
+      <div class="dialog-actions">
+        <button class="btn-danger" id="deleteAccountConfirm" type="button" data-i18n="deleteAccountConfirm">מחק לצמיתות</button>
+        <button class="btn-cancel" id="deleteAccountCancel" type="button" data-i18n="deleteAccountCancel">ביטול</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Shown once, right after a successful payment, so the moment converts into actual use -->
   <div class="dialog-backdrop" id="upgradeSuccessDialog">
     <div class="dialog upgrade-dialog">
@@ -339,6 +350,10 @@
           <button class="btn btn-secondary" id="googleSignOutBtn" style="margin-top: 10px; font-size: 0.85rem;">
             <span data-i18n="signOut">התנתק</span>
           </button>
+          <button class="btn btn-secondary delete-account-btn" id="deleteAccountBtn" type="button">
+            <span data-i18n="deleteAccount">מחק חשבון</span>
+          </button>
+          <p class="delete-account-note" data-i18n="deleteAccountNote">מוחק לצמיתות את הנתונים בענן ואת ההתחברות. אי אפשר לשחזר.</p>
 
           <div style="margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--card-border);">
             <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 8px;" data-i18n="inviteDesc">הזמן חברים — כל חבר שנרשם דרך הקישור שלך נותן לך 7 ימי AI Coach בחינם</p>
@@ -349,6 +364,9 @@
             <p id="inviteCount" style="font-size: 0.78rem; color: var(--accent-light); margin-top: 6px; font-weight: 600;"></p>
           </div>
         </div>
+        <p class="delete-account-help-row">
+          <a href="./delete-account.html" class="footer-credit-link" data-i18n="deleteAccountHelp">איך מוחקים חשבון</a>
+        </p>
       </div>
 
       <div class="setting-group">
@@ -407,6 +425,7 @@
 
   <script type="module" src="firebase-init.js"></script>
   <script src="shared/notification-select.js"></script>
+  <script src="shared/play-build.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

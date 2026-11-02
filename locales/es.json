@@ -175,5 +175,19 @@
   "addressFormTitle": "Forma de tratamiento",
   "addressFormDesc": "Redacción en masculino o femenino en hebreo",
   "addressFormMale": "Masculino",
-  "addressFormFemale": "Femenino"
+  "addressFormFemale": "Femenino",
+  "noAdsPlay": "La base de la app es gratis para siempre, sin anuncios",
+  "homeModeDescPlay": "Mínimo muestra solo la frase y las acciones principales; completo también muestra compartir",
+  "deleteAccount": "Eliminar cuenta",
+  "deleteAccountNote": "Borra para siempre los datos en la nube y el inicio de sesión. No se puede deshacer.",
+  "deleteAccountTitle": "¿Eliminar la cuenta?",
+  "deleteAccountBody": "Se borrarán la meta, el diario, los favoritos, las frases personales, los recordatorios y el plan de IA guardados en la cuenta. Se eliminará el inicio de sesión con Google. No se puede deshacer.",
+  "deleteAccountConfirm": "Eliminar para siempre",
+  "deleteAccountCancel": "Cancelar",
+  "deleteAccountWorking": "Eliminando la cuenta...",
+  "deleteAccountDone": "Cuenta eliminada",
+  "deleteAccountError": "No se pudo eliminar la cuenta. Inténtalo de nuevo o escribe a Uriz1991@gmail.com",
+  "deleteAccountNeedSignIn": "Inicia sesión antes de eliminar la cuenta",
+  "deleteAccountHelp": "Cómo eliminar una cuenta",
+  "deleteAccountStripeNote": "Los datos se borraron, pero no se pudo cancelar la suscripción de Stripe. Escribe a Uriz1991@gmail.com para que no siga el cobro."
 }

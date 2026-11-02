@@ -4,8 +4,13 @@ import {
   getAuth,
   GoogleAuthProvider,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   signOut as fbSignOut,
-  onAuthStateChanged
+  onAuthStateChanged,
+  deleteUser,
+  reauthenticateWithPopup,
+  reauthenticateWithRedirect
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js';
 import {
   getFirestore,
@@ -55,10 +60,31 @@ const createCheckoutSessionFn = httpsCallable(functions, 'createCheckoutSession'
 const createPortalSessionFn = httpsCallable(functions, 'createPortalSession');
 const generatePersonalPlanFn = httpsCallable(functions, 'generatePersonalPlan');
 const redeemReferralFn = httpsCallable(functions, 'redeemReferral');
+const deleteAccountFn = httpsCallable(functions, 'deleteAccount');
+
+function requireCurrentUser() {
+  const user = auth.currentUser;
+  if (!user) {
+    const err = new Error('No signed-in user');
+    err.code = 'auth/no-current-user';
+    throw err;
+  }
+  return user;
+}
 
 window.AppAuth = {
   signIn: () => signInWithPopup(auth, provider),
+  // Trusted Web Activity blocks window.open, so the Play build uses a redirect.
+  signInWithRedirect: () => signInWithRedirect(auth, provider),
+  getRedirectResult: () => getRedirectResult(auth),
   signOut: () => fbSignOut(auth),
+  deleteAuthUser: () => deleteUser(requireCurrentUser()),
+  reauthenticateWithPopup: () => reauthenticateWithPopup(requireCurrentUser(), provider),
+  reauthenticateWithRedirect: () => reauthenticateWithRedirect(requireCurrentUser(), provider),
+  deleteCloudAccount: async () => {
+    const result = await deleteAccountFn();
+    return result.data;
+  },
   onChange: (callback) => onAuthStateChanged(auth, callback),
   logEvent: (name, params) => logEvent(analytics, name, params),
   loadUserData: async (uid) => {

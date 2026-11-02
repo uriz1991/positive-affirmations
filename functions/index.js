@@ -376,10 +376,17 @@ exports.stripeWebhook = onRequest({ secrets: [stripeSecretKey, stripeWebhookSecr
       const lookup = await db.doc('stripeCustomers/' + customerId).get();
       const uid = lookup.data()?.uid || subscription.metadata?.uid;
       if (uid) {
-        await db.doc('subscriptions/' + uid).set({
-          isPro: false,
-          updatedAt: FieldValue.serverTimestamp()
-        }, { merge: true });
+        // Account deletion cancels Stripe and then removes the user doc.
+        // A webhook that lands after that must not recreate the subscription row.
+        const userSnap = await db.doc('users/' + uid).get();
+        if (!userSnap.exists) {
+          await db.doc('subscriptions/' + uid).delete();
+        } else {
+          await db.doc('subscriptions/' + uid).set({
+            isPro: false,
+            updatedAt: FieldValue.serverTimestamp()
+          }, { merge: true });
+        }
       }
     }
   } catch (err) {
@@ -618,4 +625,42 @@ exports.sendWeeklyCoachInsight = onSchedule({
       logger.error('Weekly coach failed for user', { uid, message: err.message });
     }
   }));
+});
+
+// Deletes the signed-in user's Firestore data and cancels a website Stripe
+// subscription if one exists. The client deletes the Firebase Auth user
+// afterwards so it can handle auth/requires-recent-login.
+exports.deleteAccount = onCall({ secrets: [stripeSecretKey] }, async (request) => {
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', 'Sign in first.');
+  }
+  const uid = request.auth.uid;
+  const subSnap = await db.doc('subscriptions/' + uid).get();
+  const customerId = subSnap.data()?.stripeCustomerId;
+  let stripeCancel = 'none';
+
+  if (customerId) {
+    stripeCancel = 'ok';
+    try {
+      const stripe = require('stripe')(secretValue(stripeSecretKey));
+      const listed = await stripe.subscriptions.list({
+        customer: customerId,
+        status: 'all',
+        limit: 100
+      });
+      for (const sub of listed.data) {
+        if (sub.status !== 'canceled' && sub.status !== 'incomplete_expired') {
+          await stripe.subscriptions.cancel(sub.id);
+        }
+      }
+      await db.doc('stripeCustomers/' + customerId).delete();
+    } catch (err) {
+      logger.error('Stripe cancel during account deletion failed', { uid, message: err.message });
+      stripeCancel = 'failed';
+    }
+  }
+
+  await db.doc('users/' + uid).delete();
+  await db.doc('subscriptions/' + uid).delete();
+  return { deleted: true, stripeCancel };
 });

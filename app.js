@@ -24,6 +24,75 @@ let authResolved = false;
 // Created in Stripe Dashboard → Product catalog → your subscription product.
 const STRIPE_MONTHLY_PRICE_ID = 'price_1UAlkS5TpYQiqdPxShalBZVP';
 
+// Synced account content. UI preferences (language, theme, font, home mode)
+// stay on the device when the account is deleted.
+const ACCOUNT_LOCAL_KEYS = [
+  'goal-data',
+  'belief-journal',
+  'favorites',
+  'personal-affirmations',
+  'reminders-list',
+  'reminders-sent',
+  'reminder-settings',
+  'address-form',
+  'fcm-token',
+  'fcm-server-uid',
+  'referral-code',
+  'pro-since',
+  'last-nudge-date',
+  'notification-recent-ids',
+  'today-steps-done',
+  'streak-data'
+];
+
+function readPlayInput() {
+  let stored = '';
+  try { stored = sessionStorage.getItem('play-build') || ''; } catch {}
+  const params = new URLSearchParams(window.location.search);
+  return {
+    stored,
+    source: params.get('source'),
+    play: params.get('play'),
+    referrer: document.referrer || ''
+  };
+}
+
+function evaluatePlayBuildSafe(input) {
+  if (window.PlayBuild && window.PlayBuild.evaluatePlayBuild) {
+    return window.PlayBuild.evaluatePlayBuild(input);
+  }
+  const fromQuery = input.source === 'play' || input.play === '1';
+  const fromReferrer = (input.referrer || '').indexOf('android-app://') === 0;
+  return {
+    active: input.stored === '1' || fromQuery || fromReferrer,
+    persist: fromQuery || fromReferrer
+  };
+}
+
+function initPlayBuild() {
+  const decision = evaluatePlayBuildSafe(readPlayInput());
+  if (decision.persist) {
+    try { sessionStorage.setItem('play-build', '1'); } catch {}
+  }
+  document.body.classList.toggle('play-build', !!decision.active);
+  return !!decision.active;
+}
+
+function isPlayBuild() {
+  return document.body.classList.contains('play-build');
+}
+
+function applyPlayBillingCopy() {
+  if (!isPlayBuild()) return;
+  document.querySelectorAll('[data-i18n="noAds"]').forEach((el) => {
+    el.textContent = t('noAdsPlay');
+  });
+  document.querySelectorAll('[data-i18n="homeModeDesc"]').forEach((el) => {
+    const value = t('homeModeDescPlay');
+    if (value && value !== 'homeModeDescPlay') el.textContent = value;
+  });
+}
+
 const GOAL_EXTRA_PATTERNS = {
   he: {
     business: /עסק|כסף|הכנסה|עושר|כלכל/,
@@ -143,6 +212,7 @@ async function loadLanguage(lang) {
   document.title = t('appTitle');
 
   applyTranslations();
+  applyPlayBillingCopy();
   loadCategoryOrder();
   renderCategoryChips();
   loadEnabledCategories();
@@ -189,6 +259,7 @@ function updateOfflineIndicator() {
 
 // ===== Initialize =====
 document.addEventListener('DOMContentLoaded', async () => {
+  initPlayBuild();
   setupEventListeners();
   loadAddressForm();
   const savedLang = localStorage.getItem('app-language') || 'he';
@@ -207,6 +278,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   registerServiceWorker();
   maybeShowOnboarding();
   if (window.AppAuth) {
+    await resumePlayAuthRedirect();
     window.AppAuth.onChange(handleAuthChange);
     setTimeout(() => {
       if (authResolved) return;
@@ -481,6 +553,7 @@ function setupEventListeners() {
   // this becomes a thank-you with a one-time-coffee option instead.
   document.getElementById('donateBtn').addEventListener('click', (e) => {
     e.preventDefault();
+    if (isPlayBuild()) return;
     if (isPro) {
       handleManagePortal();
     } else {
@@ -545,11 +618,18 @@ function setupEventListeners() {
   // Google sign-in
   document.getElementById('googleSignInBtn').addEventListener('click', handleGoogleSignIn);
   document.getElementById('googleSignOutBtn').addEventListener('click', handleGoogleSignOut);
+  document.getElementById('deleteAccountBtn').addEventListener('click', () => {
+    document.getElementById('deleteAccountDialog').classList.add('active');
+  });
+  document.getElementById('deleteAccountCancel').addEventListener('click', () => {
+    document.getElementById('deleteAccountDialog').classList.remove('active');
+  });
+  document.getElementById('deleteAccountConfirm').addEventListener('click', handleDeleteAccountConfirmed);
   document.getElementById('shareInviteBtn').addEventListener('click', shareInviteLink);
 
   // Upgrade / AI Coach
   document.getElementById('upgradeAiBtn').addEventListener('click', () => {
-    if (isPro) return; // disabled state already covers this, but guard anyway
+    if (isPlayBuild() || isPro) return; // disabled state already covers this, but guard anyway
     document.getElementById('upgradeDialog').classList.add('active');
   });
   document.getElementById('upgradeCancelBtn').addEventListener('click', () => {
@@ -589,6 +669,7 @@ function setupEventListeners() {
   document.getElementById('goalBanner').addEventListener('click', openVisualize);
   document.getElementById('saveGoalBtn').addEventListener('click', handleSaveGoal);
   document.getElementById('goalAiNudge').addEventListener('click', () => {
+    if (isPlayBuild()) return;
     logAnalyticsEvent('goal_ai_nudge_clicked');
     document.getElementById('upgradeDialog').classList.add('active');
   });
@@ -2080,10 +2161,102 @@ async function pushToCloud() {
 async function handleGoogleSignIn() {
   if (!window.AppAuth) return;
   try {
+    // A Trusted Web Activity blocks window.open, so popup sign-in fails there.
+    // The website keeps the popup.
+    if (isPlayBuild() && window.AppAuth.signInWithRedirect) {
+      await window.AppAuth.signInWithRedirect();
+      return;
+    }
     await window.AppAuth.signIn();
     showToast(t('toastSignedIn'));
   } catch {
     showToast(t('toastSignInError'));
+  }
+}
+
+function clearAccountLocalData() {
+  ACCOUNT_LOCAL_KEYS.forEach((key) => {
+    try { localStorage.removeItem(key); } catch {}
+  });
+}
+
+async function resumePlayAuthRedirect() {
+  if (!isPlayBuild() || !window.AppAuth?.getRedirectResult) return;
+  let pending = '';
+  try { pending = sessionStorage.getItem('pending-account-delete') || ''; } catch {}
+  let result = null;
+  try {
+    result = await window.AppAuth.getRedirectResult();
+  } catch {
+    if (pending) showToast(t('deleteAccountError'));
+  }
+  if (!pending) {
+    if (result && result.user) showToast(t('toastSignedIn'));
+    return;
+  }
+  try { sessionStorage.removeItem('pending-account-delete'); } catch {}
+  if (!result) {
+    showToast(t('deleteAccountError'));
+    return;
+  }
+  try {
+    await performAccountDeletion({ phase: pending === 'auth' ? 'auth' : 'full' });
+  } catch {
+    showToast(t('deleteAccountError'));
+  }
+}
+
+async function performAccountDeletion(options = {}) {
+  const phase = options.phase || 'full';
+  if (phase !== 'auth') {
+    if (!window.AppAuth?.deleteCloudAccount) throw new Error('missing-delete');
+    const result = await window.AppAuth.deleteCloudAccount();
+    if (result?.stripeCancel === 'failed') showToast(t('deleteAccountStripeNote'));
+  }
+  await window.AppAuth.deleteAuthUser();
+  clearAccountLocalData();
+  showToast(t('deleteAccountDone'));
+  setTimeout(() => window.location.reload(), 700);
+}
+
+async function handleDeleteAccountConfirmed() {
+  const dialog = document.getElementById('deleteAccountDialog');
+  const confirmBtn = document.getElementById('deleteAccountConfirm');
+  if (!currentUser) {
+    if (dialog) dialog.classList.remove('active');
+    showToast(t('deleteAccountNeedSignIn'));
+    return;
+  }
+  if (confirmBtn) confirmBtn.disabled = true;
+  showToast(t('deleteAccountWorking'));
+  try {
+    await performAccountDeletion({ phase: 'full' });
+    if (dialog) dialog.classList.remove('active');
+  } catch (err) {
+    const code = err?.code || '';
+    if (code === 'auth/requires-recent-login') {
+      try {
+        if (isPlayBuild() && window.AppAuth?.reauthenticateWithRedirect) {
+          sessionStorage.setItem('pending-account-delete', 'auth');
+          await window.AppAuth.reauthenticateWithRedirect();
+          return;
+        }
+        await window.AppAuth.reauthenticateWithPopup();
+        await window.AppAuth.deleteAuthUser();
+        clearAccountLocalData();
+        if (dialog) dialog.classList.remove('active');
+        showToast(t('deleteAccountDone'));
+        setTimeout(() => window.location.reload(), 700);
+        return;
+      } catch {
+        try { sessionStorage.removeItem('pending-account-delete'); } catch {}
+        showToast(t('deleteAccountError'));
+      }
+    } else {
+      showToast(t('deleteAccountError'));
+    }
+  } finally {
+    if (confirmBtn) confirmBtn.disabled = false;
   }
 }
 
@@ -2229,6 +2402,7 @@ function updateUpgradeChipUI() {
   const planEl = document.getElementById('personalPlan');
   const donateLabel = document.getElementById('donateBtnLabel');
   const nudge = document.getElementById('goalAiNudge');
+  document.body.classList.toggle('is-pro', !!isPro);
   if (donateLabel) donateLabel.textContent = isPro ? t('btnDonateProThanks') : t('btnDonate');
   if (nudge) nudge.style.display = (isPro || !goalData.goal) ? 'none' : '';
   if (!btn) return;
@@ -2258,6 +2432,7 @@ function removeAiCoachFromPool() {
 }
 
 async function handleUpgradeClick() {
+  if (isPlayBuild()) return;
   // Signing in used to be a hard stop here (a toast, then the user has to go
   // find the account tab themselves) — that's exactly the kind of extra step
   // that loses people right before Checkout, so do it inline instead.
@@ -2302,6 +2477,7 @@ async function handleGeneratePlan() {
 }
 
 async function handleManagePortal() {
+  if (isPlayBuild()) return;
   if (!window.AppAuth?.startPortalSession) return;
   try {
     const url = await window.AppAuth.startPortalSession();
@@ -2499,3 +2675,5 @@ function logAnalyticsEvent(name, params) {
     try { window.AppAuth.logEvent(name, params); } catch {}
   }
 }
+
+initPlayBuild();
