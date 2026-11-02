@@ -2,6 +2,10 @@
 
 Code changes for the 2026-11-02 review are in the repo. Nothing in this file has been applied. Do not treat a merge as permission to change IAM, rotate keys, or deploy. Each item needs the project owner in Google Cloud, Firebase, Stripe, or GitHub.
 
+## Required before release
+
+Enable a Firestore TTL policy on collection `referralIdentities`, field `expireAt`, before the referral code is relied on in production. Documents store `expireAt` about one year after redemption. TTL is a console setting. This repo does not create it. Without it, the hashed referral record is kept after that year.
+
 ## Before the new code is live
 
 1. **Firestore rules are not deployed by the functions workflow.** After reviewing `firestore.rules`, publish them yourself:

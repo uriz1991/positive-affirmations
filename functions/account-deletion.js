@@ -100,7 +100,10 @@ function subscriptionCancelIsSettled(err) {
   if (isMissingStripeCustomer(err)) return true;
   const code = err && (err.code || (err.raw && err.raw.code));
   if (code === 'resource_missing') return true;
-  const msg = String((err && err.message) || '').toLowerCase();
+  // "canceled" inside an unrelated error must not look settled. Only Stripe's
+  // invalid-request error for a subscription that is already canceled does.
+  if (!err || err.type !== 'StripeInvalidRequestError') return false;
+  const msg = String(err.message || '').toLowerCase();
   return msg.includes('canceled') || msg.includes('cancelled');
 }
 

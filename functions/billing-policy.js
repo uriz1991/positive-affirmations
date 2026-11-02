@@ -33,6 +33,17 @@ function trialEligible(sub) {
 // A second live subscription must not replace the one we already track.
 // cancel-incoming: cancel and refund the subscription this event is about.
 // ignore: a different subscription's past_due/canceled event must not clear Pro.
+// After Stripe is re-fetched: active/trialing means cancel the new subscription.
+// past_due/unpaid/paused/incomplete are still open, so cancel that stored
+// subscription instead of leaving it beside the new one.
+function storedSubscriptionDuplicatePlan(stripeStatus) {
+  if (stripeStatus === 'active' || stripeStatus === 'trialing') return 'cancel-incoming';
+  if (stripeStatus === 'past_due' || stripeStatus === 'unpaid' || stripeStatus === 'incomplete' || stripeStatus === 'paused') {
+    return 'cancel-stored';
+  }
+  return 'replace';
+}
+
 function duplicateSubscriptionAction(existing, incoming) {
   if (!existing || !incoming || !incoming.id || !existing.stripeSubscriptionId) return 'apply';
   if (existing.stripeSubscriptionId === incoming.id) return 'apply';
@@ -150,6 +161,7 @@ module.exports = {
   isAllowedPrice,
   trialEligible,
   duplicateSubscriptionAction,
+  storedSubscriptionDuplicatePlan,
   checkoutBlocked,
   checkoutExpiresAtSeconds,
   openPendingCheckout,

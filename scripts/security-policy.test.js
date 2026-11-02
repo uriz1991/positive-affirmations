@@ -8,6 +8,7 @@ const {
   isAllowedPrice,
   trialEligible,
   duplicateSubscriptionAction,
+  storedSubscriptionDuplicatePlan,
   checkoutBlocked,
   CHECKOUT_SESSION_TTL_MS,
   checkoutExpiresAtSeconds,
@@ -96,6 +97,10 @@ check('a second live subscription is cancelled instead of replacing the first', 
     { stripeSubscriptionId: 'sub_old', status: 'canceled', isPro: false },
     { id: 'sub_new', status: 'active' }
   ), 'apply');
+  assert.strictEqual(storedSubscriptionDuplicatePlan('active'), 'cancel-incoming');
+  assert.strictEqual(storedSubscriptionDuplicatePlan('past_due'), 'cancel-stored');
+  assert.strictEqual(storedSubscriptionDuplicatePlan('unpaid'), 'cancel-stored');
+  assert.strictEqual(storedSubscriptionDuplicatePlan('canceled'), 'replace');
 });
 
 check('gemini credit is refunded only for transport, 5xx, and quota failures', () => {

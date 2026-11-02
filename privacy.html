@@ -75,7 +75,7 @@
     <p>באפליקציה, אחרי התחברות: הגדרות ← חשבון ← מחק חשבון. הפעולה מוחקת את נתוני הענן (היעד, היומן, המועדפים, המשפטים האישיים, התזכורות, אסימון ההתראות ותוכנית ה-AI) ואת משתמש ההתחברות. אם יש מנוי Stripe מהאתר, קודם מבטלים אותו ומוחקים את רשומת הלקוח. אם הביטול נכשל, החשבון לא נמחק.</p>
     <p>הסבר מלא, כולל בקשה באימייל אם אי אפשר להיכנס: <a href="./delete-account.html">מחיקת חשבון</a>.</p>
     <p>להסרת נתונים שנשארו רק במכשיר: נקו את נתוני האתר (Site Data) בהגדרות הדפדפן. אפשר גם לכתוב אל <a href="mailto:Uriz1991@gmail.com?subject=Delete%20my%20data">Uriz1991@gmail.com</a>.</p>
-    <p>כדי למנוע שימוש חוזר בהזמנת חברים, נשמר מזהה מוצפן (HMAC) של חשבון Google או של כתובת האימייל, בלי השם ובלי מזהה המשתמש, למשך כשנה אחרי המימוש. אי אפשר לשחזר ממנו את האימייל. אחרי מחיקת החשבון המזהים של המשתמשים נמחקים מהרשומה הזו.</p>
+    <p>כדי למנוע שימוש חוזר בהזמנת חברים, נשמר מזהה מוצפן (HMAC) של החשבון שהוזמן, יחד עם מזהה החשבון של מי שהזמין, עד כשנה. אי אפשר לשחזר מהמזהה המוצפן את האימייל. מזהה המזמין נמחק כשנמחק החשבון של המוזמן או של המזמין. המזהה המוצפן עצמו נשאר עד כשנה ואז נמחק.</p>
   </div>
 
   <hr>
@@ -115,7 +115,7 @@
     <p>In the app, after you sign in: Settings → Account → Delete account. This deletes the cloud data (goal, journal, favorites, personal affirmations, reminders, notification token, and AI plan) and the sign-in user. If a Stripe subscription was started on the website, we cancel it and delete the Stripe customer record first. If that cancel fails, the account is not deleted.</p>
     <p>Full steps, including an email request if you cannot sign in: <a href="./delete-account.html">Delete account</a>.</p>
     <p>To remove data that exists only on this device, clear this site's data in your browser settings. You can also email <a href="mailto:Uriz1991@gmail.com?subject=Delete%20my%20data">Uriz1991@gmail.com</a>.</p>
-    <p>To prevent referral abuse, we keep a keyed hash of the Google account or email address, without your name or user id, for about a year after the referral is redeemed. The hash cannot be turned back into the email address. After the account is deleted, the user ids are removed from that record.</p>
+    <p>To prevent referral abuse, we keep a keyed hash of the invited account together with the inviter's account id, for up to about a year. The hash cannot be turned back into an email address. The inviter's account id is removed when either account is deleted. The hash itself remains until that year is up, then the record is deleted.</p>
   </div>
 
 </body>

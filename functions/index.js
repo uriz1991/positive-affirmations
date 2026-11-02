@@ -90,6 +90,7 @@ const {
   reserveCheckout,
   portalCustomerId,
   duplicateSubscriptionAction,
+  storedSubscriptionDuplicatePlan,
   customerIdOf,
   shouldApplyBillingEvent,
   billingPatchFromSubscription
@@ -721,29 +722,34 @@ async function refundLatestInvoice(stripe, subscription, predicate) {
   if (outcome === 'retry') throw retryableWebhookError('refund did not complete for ' + invoiceId);
 }
 
-// Duplicate checkout: cancel and refund the extra subscription only after
-// Stripe confirms the one we already stored is still active or trialing.
+// Duplicate checkout: re-fetch the stored subscription. Active or trialing
+// means cancel the new one. past_due or unpaid means cancel the stored one
+// so it is not left running beside the new subscription.
 async function resolveDuplicateOrApply(stripe, uid, subscription, event, customerId) {
   const result = await writeSubscriptionSnapshot(uid, subscription, event, customerId);
   if (!result || result.action !== 'cancel-incoming') return;
-  const live = await storedSubscriptionIsLive(stripe, result.storedSubscriptionId);
-  if (live) {
+  let stripeStatus = 'canceled';
+  if (result.storedSubscriptionId) {
+    try {
+      const stored = await stripe.subscriptions.retrieve(result.storedSubscriptionId);
+      stripeStatus = stored && stored.status;
+    } catch (err) {
+      if (!subscriptionCancelIsSettled(err)) throw retryableWebhookError(err.message);
+    }
+  }
+  const plan = storedSubscriptionDuplicatePlan(stripeStatus);
+  if (plan === 'cancel-incoming') {
     await cancelSubscriptionIdempotent(stripe, subscription);
     await refundLatestInvoice(stripe, subscription);
     return;
   }
-  await writeSubscriptionSnapshot(uid, subscription, event, customerId, { force: true });
-}
-
-async function storedSubscriptionIsLive(stripe, storedId) {
-  if (!storedId) return false;
-  try {
-    const stored = await stripe.subscriptions.retrieve(storedId);
-    return !!(stored && (stored.status === 'active' || stored.status === 'trialing'));
-  } catch (err) {
-    if (subscriptionCancelIsSettled(err)) return false;
-    throw retryableWebhookError(err.message);
+  if (plan === 'cancel-stored') {
+    await cancelSubscriptionIdempotent(stripe, {
+      id: result.storedSubscriptionId,
+      status: stripeStatus
+    });
   }
+  await writeSubscriptionSnapshot(uid, subscription, event, customerId, { force: true });
 }
 
 async function settleDeletedAccountSubscription(stripe, subscription, deletedAtMs) {
@@ -1231,19 +1237,16 @@ async function clearReferralIdentityUsers(uid) {
   try {
     hashKey = secretValue(referralHashKey);
   } catch (err) {
-    hashKey = '';
+    throw new Error('referral-identity-cleanup-failed');
   }
-  if (hashKey) {
-    try {
-      const userRecord = await getAuth().getUser(uid);
-      referralIdentityKeys(userRecord, hashKey).forEach((id) => {
-        refs.push(db.doc('referralIdentities/' + id));
-      });
-    } catch (err) {
-      if (!err || err.code !== 'auth/user-not-found') {
-        logger.error('Could not load user for referral identity cleanup', { uid, message: err && err.message });
-      }
-    }
+  if (!hashKey) throw new Error('referral-identity-cleanup-failed');
+  try {
+    const userRecord = await getAuth().getUser(uid);
+    referralIdentityKeys(userRecord, hashKey).forEach((id) => {
+      refs.push(db.doc('referralIdentities/' + id));
+    });
+  } catch (err) {
+    if (!err || err.code !== 'auth/user-not-found') throw err;
   }
   const asReferrer = await db.collection('referralIdentities').where('referrerUid', '==', uid).get();
   asReferrer.docs.forEach((docSnap) => refs.push(docSnap.ref));
@@ -1283,15 +1286,16 @@ async function finishAccountDeletion(uid, customerHint) {
 
   const stripe = stripeClient();
   const customerIds = await customerIdsForUser(stripe, uid, customerId);
-  for (const id of customerIds) {
-    await cancelCustomerSubscriptions(stripe, id, uid);
-  }
-
+  // Write deletedAt before cancelling. A payment that lands in that window
+  // is after the tombstone, so the webhook refunds it. An earlier invoice is not.
   await tombRef.set({
     deletedAt: tomb.deletedAt || FieldValue.serverTimestamp(),
     status: 'pending',
     customerId: customerIds[0] || customerId || null
   }, { merge: true });
+  for (const id of customerIds) {
+    await cancelCustomerSubscriptions(stripe, id, uid);
+  }
 
   await db.doc('users/' + uid).delete();
   await db.doc('subscriptions/' + uid).delete();
@@ -1301,7 +1305,8 @@ async function finishAccountDeletion(uid, customerHint) {
   try {
     await clearReferralIdentityUsers(uid);
   } catch (err) {
-    logger.error('Could not clear referral identity user ids', { uid, message: err && err.message });
+    logger.error('Could not clear referral identity user ids; tombstone stays pending for the hourly retry', { uid, message: err && err.message });
+    throw new HttpsError('internal', 'referral-identity-cleanup-failed');
   }
   await db.doc('referrals/' + uid).delete();
   await db.doc('referralMonthly/' + uid).delete();

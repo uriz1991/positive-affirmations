@@ -101,6 +101,14 @@ gcloud services enable eventarc.googleapis.com run.googleapis.com pubsub.googlea
 
 `roles/run.invoker` על חשבון הריצה חסר היום. דיפלוי הפונקציות האחרון נכשל כי הוא ביקש את הכריכה הזו: פונקציות דור 2 רצות כשירות Cloud Run, ו-Cloud Scheduler / Eventarc צריכים הרשאת invoke על חשבון הריצה. בעל הפרויקט נותן אותה פעם אחת. חשבון הדיפלוי לא צריך `roles/resourcemanager.projectIamAdmin` בשביל זה, אם הכריכה כבר קיימת והוא יכול לקרוא את המדיניות (`roles/iam.securityReviewer` למעלה).
 
+לפני דיפלוי הפונקציות יוצרים את סוד ה-HMAC של ההזמנות (בלי זה `redeemReferral` לא עולה):
+
+```bash
+firebase functions:secrets:set REFERRAL_HASH_KEY --project positive-affirmations-9f382
+```
+
+חשבון הריצה `PROJECT_NUMBER-compute@developer.gserviceaccount.com` צריך `roles/secretmanager.secretAccessor` על הסוד הזה. נותנים את זה ידנית על הסוד, לא על כל הפרויקט. אם לא, חשבון הדיפלוי צריך הרשאה לשנות IAM על הסוד (`secretmanager.secrets.setIamPolicy`) כדי שהדיפלוי יוכל לקשור אותו לפונקציה.
+
 אם בכל זאת נותנים לחשבון הדיפלוי `roles/resourcemanager.projectIamAdmin`, הוא יכול להעניק את התפקידים האלה בעצמו. לא שניהם חובה.
 
 הדיפלוי הראשון עדיין יכול ליפול פעם אחת בזמן שגוגל מסיימים ליצור את סוכן Eventarc. מחכים כמה דקות ומריצים את דיפלוי הפונקציות שוב. זו לא תקלה בקוד.

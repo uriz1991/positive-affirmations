@@ -217,7 +217,15 @@ check('deleting an account does not refund the month already paid', () => {
   assert.strictEqual(subscriptionCancelIsSettled({ code: 'resource_missing' }), true);
   assert.strictEqual(subscriptionCancelIsSettled({
     message: 'You cannot cancel a subscription that is canceled.'
+  }), false);
+  assert.strictEqual(subscriptionCancelIsSettled({
+    type: 'StripeInvalidRequestError',
+    message: 'You cannot cancel a subscription that is canceled.'
   }), true);
+  assert.strictEqual(subscriptionCancelIsSettled({
+    type: 'StripeCardError',
+    message: 'The payment was canceled.'
+  }), false);
   assert.strictEqual(subscriptionCancelIsSettled({ code: 'rate_limit', message: 'slow down' }), false);
 });
 

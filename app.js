@@ -2196,6 +2196,7 @@ function deleteFailureKey(err) {
   if (msg.indexOf('stripe-cancel-failed') !== -1) return 'deleteAccountStripeCancelFailed';
   if (msg.indexOf('stripe-customer-delete-failed') !== -1) return 'deleteAccountIncomplete';
   if (msg.indexOf('auth-delete-failed') !== -1) return 'deleteAccountIncomplete';
+  if (msg.indexOf('referral-identity-cleanup-failed') !== -1) return 'deleteAccountIncomplete';
   if (err && (err.code === 'functions/unavailable' || err.code === 'functions/not-found')) {
     return 'deleteAccountUnavailable';
   }
