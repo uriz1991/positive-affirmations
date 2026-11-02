@@ -24,6 +24,83 @@ let authResolved = false;
 // Created in Stripe Dashboard → Product catalog → your subscription product.
 const STRIPE_MONTHLY_PRICE_ID = 'price_1UAlkS5TpYQiqdPxShalBZVP';
 
+// Synced account content. UI preferences (language, theme, font, home mode)
+// stay on the device when the account is deleted.
+const ACCOUNT_LOCAL_KEYS = [
+  'goal-data',
+  'belief-journal',
+  'favorites',
+  'personal-affirmations',
+  'reminders-list',
+  'reminders-sent',
+  'reminder-settings',
+  'address-form',
+  'fcm-token',
+  'fcm-server-uid',
+  'referral-code',
+  'pro-since',
+  'last-nudge-date',
+  'notification-recent-ids',
+  'today-steps-done',
+  'streak-data'
+];
+
+function readPlayInput() {
+  let stored = '';
+  try { stored = sessionStorage.getItem('play-build') || ''; } catch {}
+  const params = new URLSearchParams(window.location.search);
+  return {
+    stored,
+    source: params.get('source'),
+    play: params.get('play'),
+    referrer: document.referrer || ''
+  };
+}
+
+function evaluatePlayBuildSafe(input) {
+  if (window.PlayBuild && window.PlayBuild.evaluatePlayBuild) {
+    return window.PlayBuild.evaluatePlayBuild(input);
+  }
+  // Without the shared helper, only the explicit query counts. A foreign
+  // android-app:// referrer must not hide billing.
+  const fromQuery = input.source === 'play' || input.play === '1';
+  return { active: fromQuery, persist: false, packageName: '' };
+}
+
+function initPlayBuild() {
+  const decision = evaluatePlayBuildSafe(readPlayInput());
+  if (decision.persist && decision.packageName) {
+    try { sessionStorage.setItem('play-build', decision.packageName); } catch {}
+  }
+  document.body.classList.toggle('play-build', !!decision.active);
+  return !!decision.active;
+}
+
+function accountDeletionBlocked() {
+  try { return sessionStorage.getItem('account-deleted') === '1'; } catch { return false; }
+}
+
+// A restored session must keep the block so an old ID token cannot upload
+// the deleted copy. A person who chooses to sign in again is a new start.
+function clearAccountDeletedForFreshSignIn() {
+  try { sessionStorage.removeItem('account-deleted'); } catch {}
+}
+
+function isPlayBuild() {
+  return document.body.classList.contains('play-build');
+}
+
+function applyPlayBillingCopy() {
+  if (!isPlayBuild()) return;
+  document.querySelectorAll('[data-i18n="noAds"]').forEach((el) => {
+    el.textContent = t('noAdsPlay');
+  });
+  document.querySelectorAll('[data-i18n="homeModeDesc"]').forEach((el) => {
+    const value = t('homeModeDescPlay');
+    if (value && value !== 'homeModeDescPlay') el.textContent = value;
+  });
+}
+
 const GOAL_EXTRA_PATTERNS = {
   he: {
     business: /עסק|כסף|הכנסה|עושר|כלכל/,
@@ -143,6 +220,7 @@ async function loadLanguage(lang) {
   document.title = t('appTitle');
 
   applyTranslations();
+  applyPlayBillingCopy();
   loadCategoryOrder();
   renderCategoryChips();
   loadEnabledCategories();
@@ -189,6 +267,7 @@ function updateOfflineIndicator() {
 
 // ===== Initialize =====
 document.addEventListener('DOMContentLoaded', async () => {
+  initPlayBuild();
   setupEventListeners();
   loadAddressForm();
   const savedLang = localStorage.getItem('app-language') || 'he';
@@ -219,6 +298,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       const body = payload.notification?.body || payload.data?.body || '';
       showToast(`${title}${body ? ' — ' + body : ''}`);
     });
+    // After the listener and the reminder fallback. A stuck redirect result
+    // must not delay either of them.
+    resumePlayAuthRedirect();
   } else {
     authResolved = true;
     startReminderChecker();
@@ -481,6 +563,7 @@ function setupEventListeners() {
   // this becomes a thank-you with a one-time-coffee option instead.
   document.getElementById('donateBtn').addEventListener('click', (e) => {
     e.preventDefault();
+    if (isPlayBuild()) return;
     if (isPro) {
       handleManagePortal();
     } else {
@@ -545,11 +628,18 @@ function setupEventListeners() {
   // Google sign-in
   document.getElementById('googleSignInBtn').addEventListener('click', handleGoogleSignIn);
   document.getElementById('googleSignOutBtn').addEventListener('click', handleGoogleSignOut);
+  document.getElementById('deleteAccountBtn').addEventListener('click', () => {
+    document.getElementById('deleteAccountDialog').classList.add('active');
+  });
+  document.getElementById('deleteAccountCancel').addEventListener('click', () => {
+    document.getElementById('deleteAccountDialog').classList.remove('active');
+  });
+  document.getElementById('deleteAccountConfirm').addEventListener('click', handleDeleteAccountConfirmed);
   document.getElementById('shareInviteBtn').addEventListener('click', shareInviteLink);
 
   // Upgrade / AI Coach
   document.getElementById('upgradeAiBtn').addEventListener('click', () => {
-    if (isPro) return; // disabled state already covers this, but guard anyway
+    if (isPlayBuild() || isPro) return; // disabled state already covers this, but guard anyway
     document.getElementById('upgradeDialog').classList.add('active');
   });
   document.getElementById('upgradeCancelBtn').addEventListener('click', () => {
@@ -589,6 +679,7 @@ function setupEventListeners() {
   document.getElementById('goalBanner').addEventListener('click', openVisualize);
   document.getElementById('saveGoalBtn').addEventListener('click', handleSaveGoal);
   document.getElementById('goalAiNudge').addEventListener('click', () => {
+    if (isPlayBuild()) return;
     logAnalyticsEvent('goal_ai_nudge_clicked');
     document.getElementById('upgradeDialog').classList.add('active');
   });
@@ -1018,7 +1109,7 @@ async function registerPeriodicSync() {
 
 // ===== FCM (real push notifications, work even when the app is fully closed) =====
 async function registerFcmToken() {
-  if (!window.AppAuth?.getFcmToken) return;
+  if (accountDeletionBlocked() || !window.AppAuth?.getFcmToken) return;
   try {
     const token = await window.AppAuth.getFcmToken();
     if (!token) return;
@@ -2020,7 +2111,7 @@ function mergeReminders(local, cloud) {
 // account with no cloud data yet, or an older cloud copy, used to wipe out
 // whatever the user had already built up on this device).
 async function syncFromCloud(uid) {
-  if (!window.AppAuth?.loadUserData) return;
+  if (accountDeletionBlocked() || !window.AppAuth?.loadUserData) return;
   try {
     const cloud = await window.AppAuth.loadUserData(uid);
     if (cloud) {
@@ -2060,7 +2151,7 @@ async function syncFromCloud(uid) {
 }
 
 async function pushToCloud() {
-  if (!cloudSyncEnabled || !currentUser || !window.AppAuth?.saveUserData) return;
+  if (accountDeletionBlocked() || !cloudSyncEnabled || !currentUser || !window.AppAuth?.saveUserData) return;
   try {
     await window.AppAuth.saveUserData(currentUser.uid, {
       goalData,
@@ -2079,11 +2170,102 @@ async function pushToCloud() {
 
 async function handleGoogleSignIn() {
   if (!window.AppAuth) return;
+  clearAccountDeletedForFreshSignIn();
   try {
+    // A Trusted Web Activity blocks window.open, so popup sign-in fails there.
+    // The website keeps the popup.
+    if (isPlayBuild() && window.AppAuth.signInWithRedirect) {
+      await window.AppAuth.signInWithRedirect();
+      return;
+    }
     await window.AppAuth.signIn();
     showToast(t('toastSignedIn'));
   } catch {
     showToast(t('toastSignInError'));
+  }
+}
+
+function clearAccountLocalData() {
+  ACCOUNT_LOCAL_KEYS.forEach((key) => {
+    try { localStorage.removeItem(key); } catch {}
+  });
+}
+
+function deleteFailureKey(err) {
+  const msg = String((err && err.message) || '');
+  if (msg.indexOf('stripe-cancel-failed') !== -1) return 'deleteAccountStripeCancelFailed';
+  if (msg.indexOf('stripe-customer-delete-failed') !== -1) return 'deleteAccountIncomplete';
+  if (msg.indexOf('auth-delete-failed') !== -1) return 'deleteAccountIncomplete';
+  if (err && (err.code === 'functions/unavailable' || err.code === 'functions/not-found')) {
+    return 'deleteAccountUnavailable';
+  }
+  return 'deleteAccountError';
+}
+
+async function resumePlayAuthRedirect() {
+  if (!isPlayBuild() || !window.AppAuth?.getRedirectResult) return;
+  try {
+    const result = await window.AppAuth.getRedirectResult();
+    if (result && result.user) {
+    clearAccountDeletedForFreshSignIn();
+    showToast(t('toastSignedIn'));
+  }
+  } catch {
+    // A launch with no redirect in progress resolves to null. A thrown error
+    // here is a failed sign-in; the person can tap the button again.
+    showToast(t('toastSignInError'));
+  }
+}
+
+async function finishLocalAccountRemoval() {
+  try { sessionStorage.setItem('account-deleted', '1'); } catch {}
+  cloudSyncEnabled = false;
+  currentUser = null;
+  clearAccountLocalData();
+  try { await window.AppAuth.signOut(); } catch {}
+  showToast(t('deleteAccountDone'));
+  setTimeout(() => window.location.reload(), 700);
+}
+
+async function performAccountDeletion() {
+  if (!window.AppAuth?.deleteCloudAccount) {
+    const err = new Error('delete-unavailable');
+    err.code = 'functions/not-found';
+    throw err;
+  }
+  // Stop this device from uploading before the server call returns. The flag
+  // stays if the call fails in an unknown way, so a reload cannot push the
+  // local copy back. Known "nothing was deleted" errors clear it.
+  try { sessionStorage.setItem('account-deleted', '1'); } catch {}
+  cloudSyncEnabled = false;
+  await window.AppAuth.deleteCloudAccount();
+  await finishLocalAccountRemoval();
+}
+
+async function handleDeleteAccountConfirmed() {
+  const dialog = document.getElementById('deleteAccountDialog');
+  const confirmBtn = document.getElementById('deleteAccountConfirm');
+  if (!currentUser) {
+    if (dialog) dialog.classList.remove('active');
+    showToast(t('deleteAccountNeedSignIn'));
+    return;
+  }
+  if (confirmBtn) confirmBtn.disabled = true;
+  showToast(t('deleteAccountWorking'));
+  try {
+    await performAccountDeletion();
+    if (dialog) dialog.classList.remove('active');
+  } catch (err) {
+    const key = deleteFailureKey(err);
+    // Only a failed Stripe cancel happens before any account data is touched.
+    // Later failures leave a pending deletion: stay blocked and try again.
+    if (key === 'deleteAccountStripeCancelFailed') {
+      try { sessionStorage.removeItem('account-deleted'); } catch {}
+      cloudSyncEnabled = !!currentUser;
+    }
+    showToast(t(key));
+  } finally {
+    if (confirmBtn) confirmBtn.disabled = false;
   }
 }
 
@@ -2229,6 +2411,7 @@ function updateUpgradeChipUI() {
   const planEl = document.getElementById('personalPlan');
   const donateLabel = document.getElementById('donateBtnLabel');
   const nudge = document.getElementById('goalAiNudge');
+  document.body.classList.toggle('is-pro', !!isPro);
   if (donateLabel) donateLabel.textContent = isPro ? t('btnDonateProThanks') : t('btnDonate');
   if (nudge) nudge.style.display = (isPro || !goalData.goal) ? 'none' : '';
   if (!btn) return;
@@ -2258,6 +2441,7 @@ function removeAiCoachFromPool() {
 }
 
 async function handleUpgradeClick() {
+  if (isPlayBuild()) return;
   // Signing in used to be a hard stop here (a toast, then the user has to go
   // find the account tab themselves) — that's exactly the kind of extra step
   // that loses people right before Checkout, so do it inline instead.
@@ -2266,6 +2450,9 @@ async function handleUpgradeClick() {
       showToast(t('toastSignInFirst'));
       return;
     }
+    // Only a real sign-in clears the deletion block. An already-signed-in
+    // upgrade must not drop it.
+    clearAccountDeletedForFreshSignIn();
     try {
       const result = await window.AppAuth.signIn();
       currentUser = result.user;
@@ -2273,6 +2460,10 @@ async function handleUpgradeClick() {
       showToast(t('toastSignInError'));
       return;
     }
+  }
+  if (currentUser) {
+    cloudSyncEnabled = true;
+    await pushToCloud();
   }
   if (!window.AppAuth?.startCheckout) return;
   try {
@@ -2302,6 +2493,7 @@ async function handleGeneratePlan() {
 }
 
 async function handleManagePortal() {
+  if (isPlayBuild()) return;
   if (!window.AppAuth?.startPortalSession) return;
   try {
     const url = await window.AppAuth.startPortalSession();
@@ -2499,3 +2691,5 @@ function logAnalyticsEvent(name, params) {
     try { window.AppAuth.logEvent(name, params); } catch {}
   }
 }
+
+initPlayBuild();

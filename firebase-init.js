@@ -4,6 +4,8 @@ import {
   getAuth,
   GoogleAuthProvider,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   signOut as fbSignOut,
   onAuthStateChanged
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js';
@@ -55,10 +57,19 @@ const createCheckoutSessionFn = httpsCallable(functions, 'createCheckoutSession'
 const createPortalSessionFn = httpsCallable(functions, 'createPortalSession');
 const generatePersonalPlanFn = httpsCallable(functions, 'generatePersonalPlan');
 const redeemReferralFn = httpsCallable(functions, 'redeemReferral');
+const deleteAccountFn = httpsCallable(functions, 'deleteAccount');
 
 window.AppAuth = {
   signIn: () => signInWithPopup(auth, provider),
+  // Trusted Web Activity blocks window.open, so the Play build uses a redirect.
+  signInWithRedirect: () => signInWithRedirect(auth, provider),
+  getRedirectResult: () => getRedirectResult(auth),
   signOut: () => fbSignOut(auth),
+  // Server deletes Firestore data and the Auth user. No client re-auth.
+  deleteCloudAccount: async () => {
+    const result = await deleteAccountFn();
+    return result.data;
+  },
   onChange: (callback) => onAuthStateChanged(auth, callback),
   logEvent: (name, params) => logEvent(analytics, name, params),
   loadUserData: async (uid) => {

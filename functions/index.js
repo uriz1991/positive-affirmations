@@ -1,11 +1,13 @@
 // Deployed automatically via GitHub Actions (.github/workflows/deploy-functions.yml)
 const { onSchedule } = require('firebase-functions/v2/scheduler');
+const { onDocumentWritten } = require('firebase-functions/v2/firestore');
 const { onCall, onRequest, HttpsError } = require('firebase-functions/v2/https');
 const { setGlobalOptions } = require('firebase-functions/v2');
 const { defineSecret } = require('firebase-functions/params');
 const logger = require('firebase-functions/logger');
 const { initializeApp } = require('firebase-admin/app');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
+const { getAuth } = require('firebase-admin/auth');
 const { getMessaging } = require('firebase-admin/messaging');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
@@ -14,6 +16,16 @@ const stripeSecretKey = defineSecret('STRIPE_SECRET_KEY');
 const stripeWebhookSecret = defineSecret('STRIPE_WEBHOOK_SECRET');
 
 const APP_URL = 'https://uriz1991.github.io/positive-affirmations/';
+
+// stripe-node 17.7 bundles 2025-02-24.acacia. Later versions (2025-03-31.basil
+// and after) remove Invoice.payment_intent and Invoice.charge. The deleted-
+// account refund reads those fields, so the version is pinned instead of
+// following the SDK default.
+const STRIPE_API_VERSION = '2025-02-24.acacia';
+
+function stripeClient() {
+  return require('stripe')(secretValue(stripeSecretKey), { apiVersion: STRIPE_API_VERSION });
+}
 
 // Secret Manager values have shown up with stray whitespace/newlines from
 // copy-paste in the past (e.g. a trailing \n makes Stripe reject an
@@ -37,7 +49,14 @@ function describeGeminiError(err) {
   };
 }
 
-setGlobalOptions({ region: 'me-west1', maxInstances: 3 });
+// Callable, HTTP, and scheduled functions stay in FUNCTION_REGION.
+// A Firestore document trigger must run in the same region as the Firestore
+// database. If that database is not in me-west1, change only
+// FIRESTORE_TRIGGER_REGION before the first deploy of dropRewrittenDeletedUser.
+const FUNCTION_REGION = 'me-west1';
+const FIRESTORE_TRIGGER_REGION = 'me-west1';
+
+setGlobalOptions({ region: FUNCTION_REGION, maxInstances: 3 });
 
 initializeApp();
 const db = getFirestore();
@@ -47,6 +66,16 @@ const messaging = getMessaging();
 // Hebrew pool: scripts/integrate-affirmations.js.
 // Other languages: scripts/build-localized-pools.js.
 const { pickFromPool, slotForReminder, personalTextsForLanguage, assignTokenOwners, tokensForUser } = require('./notification-select');
+const {
+  idsToCancel,
+  stripeCallFailure,
+  deletionTombstoneActive,
+  checkoutDecision,
+  invoiceIdFromCheckoutSession,
+  refundPlanFromInvoice,
+  applyRefundPlan,
+  blockedSenderUids
+} = require('./account-deletion');
 const NOTIFICATION_POOLS = {
   he: require('./notification-pool.json').items,
   en: require('./notification-pool-en.json').items,
@@ -98,9 +127,11 @@ function isDueNow(currentMinutes, targetTime) {
 
 exports.sendScheduledReminders = onSchedule('every 5 minutes', async () => {
   const usersSnap = await db.collection('users').get();
+  const deletedIds = await uidsBlockedFromSending(usersSnap.docs.map((doc) => doc.id));
   const tokenOwner = assignTokenOwners(usersSnap.docs.map(userTokenRecord));
 
   await Promise.all(usersSnap.docs.map(async (userDoc) => {
+    if (deletedIds.has(userDoc.id)) return;
     const data = userDoc.data();
     const reminders = Array.isArray(data.reminders) ? data.reminders : [];
     const split = tokensForUser(userTokenRecord(userDoc), tokenOwner);
@@ -295,7 +326,7 @@ exports.createCheckoutSession = onCall({ secrets: [stripeSecretKey] }, async (re
     throw new HttpsError('invalid-argument', 'Missing priceId.');
   }
 
-  const stripe = require('stripe')(secretValue(stripeSecretKey));
+  const stripe = stripeClient();
   const uid = request.auth.uid;
 
   let session;
@@ -332,7 +363,7 @@ exports.createPortalSession = onCall({ secrets: [stripeSecretKey] }, async (requ
     throw new HttpsError('failed-precondition', 'No active subscription found for this account.');
   }
 
-  const stripe = require('stripe')(secretValue(stripeSecretKey));
+  const stripe = stripeClient();
   try {
     const session = await stripe.billingPortal.sessions.create({
       customer: customerId,
@@ -346,7 +377,7 @@ exports.createPortalSession = onCall({ secrets: [stripeSecretKey] }, async (requ
 });
 
 exports.stripeWebhook = onRequest({ secrets: [stripeSecretKey, stripeWebhookSecret] }, async (req, res) => {
-  const stripe = require('stripe')(secretValue(stripeSecretKey));
+  const stripe = stripeClient();
   let event;
   try {
     event = stripe.webhooks.constructEvent(req.rawBody, req.headers['stripe-signature'], secretValue(stripeWebhookSecret));
@@ -361,14 +392,22 @@ exports.stripeWebhook = onRequest({ secrets: [stripeSecretKey, stripeWebhookSecr
       const session = event.data.object;
       const uid = session.client_reference_id || session.metadata?.uid;
       if (uid) {
-        await db.doc('subscriptions/' + uid).set({
-          isPro: true,
-          stripeCustomerId: session.customer,
-          updatedAt: FieldValue.serverTimestamp()
-        }, { merge: true });
-        // Reverse lookup so the cancellation event (which only carries the
-        // Stripe customer id, not our uid) can find the right user.
-        await db.doc('stripeCustomers/' + session.customer).set({ uid });
+        const status = await deletionTombstoneStatus(uid);
+        // A missing users/{uid} is normal: checkout often beats the first sync.
+        // Only an account that is already being deleted must not become Pro.
+        if (checkoutDecision(status) === 'revoke-payment') {
+          await revokeCheckoutForDeletedAccount(stripe, session);
+          await db.doc('subscriptions/' + uid).delete();
+        } else {
+          await db.doc('subscriptions/' + uid).set({
+            isPro: true,
+            stripeCustomerId: session.customer,
+            updatedAt: FieldValue.serverTimestamp()
+          }, { merge: true });
+          // Reverse lookup so the cancellation event (which only carries the
+          // Stripe customer id, not our uid) can find the right user.
+          await db.doc('stripeCustomers/' + session.customer).set({ uid });
+        }
       }
     } else if (event.type === 'customer.subscription.deleted') {
       const subscription = event.data.object;
@@ -376,16 +415,24 @@ exports.stripeWebhook = onRequest({ secrets: [stripeSecretKey, stripeWebhookSecr
       const lookup = await db.doc('stripeCustomers/' + customerId).get();
       const uid = lookup.data()?.uid || subscription.metadata?.uid;
       if (uid) {
-        await db.doc('subscriptions/' + uid).set({
-          isPro: false,
-          updatedAt: FieldValue.serverTimestamp()
-        }, { merge: true });
+        if (deletionTombstoneActive(await deletionTombstoneStatus(uid))) {
+          await db.doc('subscriptions/' + uid).delete();
+        } else {
+          await db.doc('subscriptions/' + uid).set({
+            isPro: false,
+            updatedAt: FieldValue.serverTimestamp()
+          }, { merge: true });
+        }
       }
     }
   } catch (err) {
-    // Stripe retries on non-2xx; still ack so a transient Firestore error
-    // doesn't cause endless webhook retries — logged so it's not silent.
     logger.error('Stripe webhook handling failed', { message: err.message, eventType: event?.type });
+    // A failed cancel/refund for a deleted account must retry. Other failures
+    // still ack so a transient Firestore error does not loop forever.
+    if (err && err.retryWebhook) {
+      res.status(500).json({ error: err.message });
+      return;
+    }
   }
 
   res.json({ received: true });
@@ -529,12 +576,14 @@ exports.sendWeeklyCoachInsight = onSchedule({
   secrets: [geminiApiKey]
 }, async () => {
   const usersSnap = await db.collection('users').get();
+  const deletedIds = await uidsBlockedFromSending(usersSnap.docs.map((doc) => doc.id));
   const tokenOwner = assignTokenOwners(usersSnap.docs.map(userTokenRecord));
   const genAI = new GoogleGenerativeAI(secretValue(geminiApiKey));
   const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
 
   await Promise.all(usersSnap.docs.map(async (userDoc) => {
     const uid = userDoc.id;
+    if (deletedIds.has(uid)) return;
     try {
       const data = userDoc.data();
       const goal = data.goalData?.goal || '';
@@ -618,4 +667,185 @@ exports.sendWeeklyCoachInsight = onSchedule({
       logger.error('Weekly coach failed for user', { uid, message: err.message });
     }
   }));
+});
+
+// One collection read per run, ids plus status only. A failed read blocks
+// every candidate so a tombstone outage cannot look like "not deleted".
+async function uidsBlockedFromSending(uids) {
+  if (!uids.length) return new Set();
+  try {
+    const snap = await db.collection('deletedAccounts').select('status').get();
+    return blockedSenderUids(
+      snap.docs.map((doc) => ({ id: doc.id, status: doc.get('status') })),
+      uids,
+      false
+    );
+  } catch (err) {
+    logger.error('Could not read deletedAccounts; skipping sends', { message: err.message });
+    return blockedSenderUids([], uids, true);
+  }
+}
+
+async function deletionTombstoneStatus(uid) {
+  const snap = await db.doc('deletedAccounts/' + uid).get();
+  if (!snap.exists) return null;
+  return snap.data()?.status || 'pending';
+}
+
+function retryableWebhookError(message) {
+  const err = new Error(message);
+  err.retryWebhook = true;
+  return err;
+}
+
+// Payment landed for an account that is already pending or done. Cancel the
+// subscription and refund a collected charge. Do not only drop our row.
+async function revokeCheckoutForDeletedAccount(stripe, session) {
+  const subId = typeof session.subscription === 'string'
+    ? session.subscription
+    : session.subscription && session.subscription.id;
+  if (subId) {
+    try {
+      await stripe.subscriptions.cancel(subId);
+    } catch (err) {
+      if (stripeCallFailure(err) === 'stop') throw retryableWebhookError(err.message);
+    }
+  }
+  // mode=subscription leaves session.payment_intent null. The money is on the invoice.
+  const invoiceId = invoiceIdFromCheckoutSession(session);
+  if (!invoiceId) throw retryableWebhookError('checkout session has no invoice');
+  let invoice;
+  try {
+    invoice = await stripe.invoices.retrieve(invoiceId);
+  } catch (err) {
+    throw retryableWebhookError(err && err.message);
+  }
+  const plan = refundPlanFromInvoice(invoice);
+  const outcome = await applyRefundPlan(plan, (refundPlan) => {
+    const body = refundPlan.paymentIntentId
+      ? { payment_intent: refundPlan.paymentIntentId }
+      : { charge: refundPlan.chargeId };
+    return stripe.refunds.create(body, { idempotencyKey: refundPlan.idempotencyKey });
+  });
+  if (outcome === 'retry') {
+    throw retryableWebhookError('refund did not complete for ' + invoiceId);
+  }
+}
+
+async function cancelCustomerSubscriptions(stripe, customerId, uid) {
+  if (!customerId) return;
+  let listed;
+  try {
+    listed = await stripe.subscriptions.list({
+      customer: customerId,
+      status: 'all',
+      limit: 100
+    });
+  } catch (err) {
+    if (stripeCallFailure(err) === 'continue') return;
+    logger.error('Stripe list during account deletion failed', { uid, message: err.message });
+    throw new HttpsError('failed-precondition', 'stripe-cancel-failed');
+  }
+  for (const subId of idsToCancel(listed.data)) {
+    try {
+      await stripe.subscriptions.cancel(subId);
+    } catch (err) {
+      if (stripeCallFailure(err) === 'continue') continue;
+      logger.error('Stripe cancel during account deletion failed', { uid, subId, message: err.message });
+      throw new HttpsError('failed-precondition', 'stripe-cancel-failed');
+    }
+  }
+}
+
+// Idempotent. Auth is deleted last, so until that succeeds the person is
+// still signed in and can call this again. A scheduled job runs the same
+// steps for tombstones left at status pending.
+//
+// Another device can still write users/{uid} for up to an hour because an
+// ID token stays valid. dropRewrittenDeletedUser removes those writes, and
+// the reminder jobs skip any uid in deletedAccounts. The Firestore rule that
+// would deny the write is documented in PLAY_RELEASE.md and is not deployed
+// from this repo.
+async function finishAccountDeletion(uid, customerHint) {
+  const tombRef = db.doc('deletedAccounts/' + uid);
+  const tombSnap = await tombRef.get();
+  const tomb = tombSnap.data() || {};
+  if (tomb.status === 'done') return { deleted: true, status: 'done' };
+
+  let customerId = customerHint || tomb.customerId || null;
+  if (!customerId) {
+    const subSnap = await db.doc('subscriptions/' + uid).get();
+    customerId = subSnap.data()?.stripeCustomerId || null;
+  }
+
+  const stripe = stripeClient();
+  await cancelCustomerSubscriptions(stripe, customerId, uid);
+
+  await tombRef.set({
+    deletedAt: tomb.deletedAt || FieldValue.serverTimestamp(),
+    status: 'pending',
+    customerId: customerId || null
+  }, { merge: true });
+
+  await db.doc('users/' + uid).delete();
+  await db.doc('subscriptions/' + uid).delete();
+  if (customerId) await db.doc('stripeCustomers/' + customerId).delete();
+
+  if (customerId) {
+    try {
+      await stripe.customers.del(customerId);
+    } catch (err) {
+      if (stripeCallFailure(err) === 'stop') {
+        logger.error('Stripe customer delete failed; Auth user kept so this can retry', { uid, message: err.message });
+        throw new HttpsError('failed-precondition', 'stripe-customer-delete-failed');
+      }
+    }
+  }
+
+  try {
+    await getAuth().deleteUser(uid);
+  } catch (err) {
+    if (!err || err.code !== 'auth/user-not-found') {
+      logger.error('Auth delete failed; Firestore data is already removed and the login can retry', { uid, message: err && err.message });
+      throw new HttpsError('internal', 'auth-delete-failed');
+    }
+  }
+
+  await tombRef.set({ status: 'done', customerId: customerId || null }, { merge: true });
+  return { deleted: true, status: 'done' };
+}
+
+exports.deleteAccount = onCall({ secrets: [stripeSecretKey] }, async (request) => {
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', 'Sign in first.');
+  }
+  const uid = request.auth.uid;
+  const subSnap = await db.doc('subscriptions/' + uid).get();
+  return finishAccountDeletion(uid, subSnap.data()?.stripeCustomerId || null);
+});
+
+exports.finishPendingAccountDeletions = onSchedule({
+  schedule: 'every 60 minutes',
+  secrets: [stripeSecretKey]
+}, async () => {
+  const snap = await db.collection('deletedAccounts').where('status', '==', 'pending').get();
+  for (const tomb of snap.docs) {
+    try {
+      await finishAccountDeletion(tomb.id, tomb.data()?.customerId || null);
+    } catch (err) {
+      logger.error('Pending account deletion did not finish', { uid: tomb.id, message: err.message });
+    }
+  }
+});
+
+// A still-valid ID token can recreate users/{uid} after deletion. Drop it.
+exports.dropRewrittenDeletedUser = onDocumentWritten({
+  document: 'users/{uid}',
+  region: FIRESTORE_TRIGGER_REGION
+}, async (event) => {
+  if (!event.data || !event.data.after.exists) return;
+  const uid = event.params.uid;
+  const status = await deletionTombstoneStatus(uid);
+  if (!deletionTombstoneActive(status)) return;
+  await event.data.after.ref.delete();
 });

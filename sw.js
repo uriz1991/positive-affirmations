@@ -41,6 +41,8 @@ const ASSETS = [
   './',
   './index.html',
   './privacy.html',
+  './delete-account.html',
+  './shared/play-build.js',
   './style.css',
   './app.js',
   './init-lang.js',

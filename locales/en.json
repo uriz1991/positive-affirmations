@@ -175,5 +175,21 @@
   "addressFormTitle": "How to address you",
   "addressFormDesc": "Masculine or feminine wording in Hebrew",
   "addressFormMale": "Masculine",
-  "addressFormFemale": "Feminine"
+  "addressFormFemale": "Feminine",
+  "noAdsPlay": "Core app free forever, no ads",
+  "homeModeDescPlay": "Minimal shows only the affirmation and the main actions; full also shows share on the screen",
+  "deleteAccount": "Delete account",
+  "deleteAccountNote": "Permanently deletes your cloud data and your sign-in. This cannot be undone.",
+  "deleteAccountTitle": "Delete your account?",
+  "deleteAccountBody": "This deletes the goal, journal, favorites, personal affirmations, reminders, and AI plan saved on the account. Your Google sign-in will be removed. This cannot be undone.",
+  "deleteAccountConfirm": "Delete forever",
+  "deleteAccountCancel": "Cancel",
+  "deleteAccountWorking": "Deleting the account...",
+  "deleteAccountDone": "Account deleted",
+  "deleteAccountError": "Couldn't delete the account. Try again, or email Uriz1991@gmail.com",
+  "deleteAccountNeedSignIn": "Sign in before deleting the account",
+  "deleteAccountHelp": "How account deletion works",
+  "deleteAccountStripeCancelFailed": "Could not cancel the Stripe subscription. Nothing was deleted. Try again, or email Uriz1991@gmail.com",
+  "deleteAccountIncomplete": "Deletion did not finish, but you are still signed in. Tap Delete account again to continue.",
+  "deleteAccountUnavailable": "Deletion did not finish. Try again. Another tap continues from where it stopped."
 }

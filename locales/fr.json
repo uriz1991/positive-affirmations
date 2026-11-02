@@ -175,5 +175,21 @@
   "addressFormTitle": "Forme d'adresse",
   "addressFormDesc": "Formulation au masculin ou au féminin en hébreu",
   "addressFormMale": "Masculin",
-  "addressFormFemale": "Féminin"
+  "addressFormFemale": "Féminin",
+  "noAdsPlay": "Le cœur de l'app reste gratuit, sans publicité",
+  "homeModeDescPlay": "Minimal n'affiche que la phrase et les actions principales ; complet affiche aussi le partage",
+  "deleteAccount": "Supprimer le compte",
+  "deleteAccountNote": "Supprime définitivement les données cloud et la connexion. Impossible d'annuler.",
+  "deleteAccountTitle": "Supprimer le compte ?",
+  "deleteAccountBody": "L'objectif, le journal, les favoris, les phrases personnelles, les rappels et le plan IA du compte seront supprimés. La connexion Google sera retirée. Impossible d'annuler.",
+  "deleteAccountConfirm": "Supprimer définitivement",
+  "deleteAccountCancel": "Annuler",
+  "deleteAccountWorking": "Suppression du compte...",
+  "deleteAccountDone": "Compte supprimé",
+  "deleteAccountError": "La suppression a échoué. Réessayez, ou écrivez à Uriz1991@gmail.com",
+  "deleteAccountNeedSignIn": "Connectez-vous avant de supprimer le compte",
+  "deleteAccountHelp": "Comment supprimer un compte",
+  "deleteAccountStripeCancelFailed": "L'abonnement Stripe n'a pas pu être annulé. Rien n'a été supprimé. Réessayez, ou écrivez à Uriz1991@gmail.com",
+  "deleteAccountIncomplete": "La suppression n'est pas terminée, mais vous êtes toujours connecté. Appuyez encore sur Supprimer le compte pour continuer.",
+  "deleteAccountUnavailable": "La suppression n'est pas terminée. Réessayez. Un nouvel appui reprend là où ça s'est arrêté."
 }

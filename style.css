@@ -1425,3 +1425,38 @@ body {
   50%  { opacity: 1; transform: translate(-50%, -80%) scale(1.5); }
   100% { opacity: 0; transform: translate(-50%, -120%) scale(1); }
 }
+
+.delete-account-btn {
+  margin-top: 10px;
+  font-size: 0.85rem;
+  color: #ff8a80;
+  border-color: rgba(255, 138, 128, 0.45);
+}
+
+.delete-account-note,
+.delete-account-help-row {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  margin-top: 8px;
+}
+
+.delete-account-dialog {
+  max-width: 360px;
+}
+
+.dialog-actions .btn-danger {
+  background: #c0392b;
+  color: white;
+}
+
+/* Google Play build: no off-Play billing or donation entry points.
+   Existing Pro status still shows inside .ai-coach-card once .is-pro is set. */
+body.play-build .footer-links,
+body.play-build #donateBtn,
+body.play-build #manageSubscriptionBtn,
+body.play-build #goalAiNudge,
+body.play-build:not(.is-pro) .ai-coach-card,
+body.play-build #upgradeDialog,
+body.play-build a[href*="buymeacoffee.com"] {
+  display: none !important;
+}
