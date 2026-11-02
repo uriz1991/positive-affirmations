@@ -73,6 +73,18 @@ check('unrelated query values do not opt the website into Play mode', () => {
   assert.strictEqual(result.active, false);
 });
 
+check('Play package name matches the Android application id', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const { packageName } = require('../shared/play-build');
+  const props = fs.readFileSync(path.join(__dirname, '../android/gradle.properties'), 'utf8');
+  const match = props.match(/^TWA_APPLICATION_ID=(.+)$/m);
+  assert.ok(match, 'TWA_APPLICATION_ID missing');
+  assert.strictEqual(packageName, match[1].trim());
+  const assetlinks = JSON.parse(fs.readFileSync(path.join(__dirname, '../android/assetlinks.template.json'), 'utf8'));
+  assert.strictEqual(assetlinks[0].target.package_name, packageName);
+});
+
 if (failures) {
   console.log(failures + ' failed');
   process.exit(1);

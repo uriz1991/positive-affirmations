@@ -190,8 +190,6 @@
   "deleteAccountNeedSignIn": "Inicia sesión antes de eliminar la cuenta",
   "deleteAccountHelp": "Cómo eliminar una cuenta",
   "deleteAccountStripeCancelFailed": "No se pudo cancelar la suscripción de Stripe. No se borró nada. Inténtalo de nuevo o escribe a Uriz1991@gmail.com",
-  "deleteAccountStripeCustomerFailed": "La suscripción se canceló, pero no se pudo borrar el cliente de Stripe. Tus datos y el acceso siguen ahí. Inténtalo de nuevo.",
-  "deleteAccountAuthFailed": "No se pudo borrar el acceso. Tus datos siguen ahí. Inténtalo de nuevo.",
-  "deleteAccountDataLeftover": "El acceso se borró, pero puede quedar algún dato en la nube. Escribe a Uriz1991@gmail.com",
-  "deleteAccountUnavailable": "El servicio de borrado no está disponible ahora. No se borró nada. Inténtalo más tarde."
+  "deleteAccountIncomplete": "El borrado no terminó, pero sigues con la sesión abierta. Pulsa otra vez Eliminar cuenta para continuar.",
+  "deleteAccountUnavailable": "El borrado no terminó. Inténtalo de nuevo. Otro toque sigue desde donde se detuvo."
 }

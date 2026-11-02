@@ -254,12 +254,8 @@
   "deleteAccountHelp": "איך מוחקים חשבון",
   "deleteAccountStripeCancelFailed": "ביטול המנוי ב-Stripe נכשל. שום דבר לא נמחק. נסה שוב, או כתוב ל-Uriz1991@gmail.com",
   "deleteAccountStripeCancelFailed_f": "ביטול המנוי ב-Stripe נכשל. שום דבר לא נמחק. נסי שוב, או כתבי ל-Uriz1991@gmail.com",
-  "deleteAccountStripeCustomerFailed": "המנוי בוטל, אבל מחיקת רשומת הלקוח ב-Stripe נכשלה. הנתונים וההתחברות נשארו. נסה שוב.",
-  "deleteAccountStripeCustomerFailed_f": "המנוי בוטל, אבל מחיקת רשומת הלקוח ב-Stripe נכשלה. הנתונים וההתחברות נשארו. נסי שוב.",
-  "deleteAccountAuthFailed": "מחיקת ההתחברות נכשלה. הנתונים נשארו בחשבון. נסה שוב.",
-  "deleteAccountAuthFailed_f": "מחיקת ההתחברות נכשלה. הנתונים נשארו בחשבון. נסי שוב.",
-  "deleteAccountDataLeftover": "ההתחברות נמחקה, אבל חלק מנתוני הענן אולי נשארו. כתוב ל-Uriz1991@gmail.com",
-  "deleteAccountDataLeftover_f": "ההתחברות נמחקה, אבל חלק מנתוני הענן אולי נשארו. כתבי ל-Uriz1991@gmail.com",
-  "deleteAccountUnavailable": "שרת המחיקה לא זמין כרגע. שום דבר לא נמחק. נסה שוב מאוחר יותר.",
-  "deleteAccountUnavailable_f": "שרת המחיקה לא זמין כרגע. שום דבר לא נמחק. נסי שוב מאוחר יותר."
+  "deleteAccountIncomplete": "המחיקה לא הסתיימה, אבל ההתחברות עדיין פעילה. לחץ שוב על מחק חשבון כדי להמשיך.",
+  "deleteAccountIncomplete_f": "המחיקה לא הסתיימה, אבל ההתחברות עדיין פעילה. לחצי שוב על מחק חשבון כדי להמשיך.",
+  "deleteAccountUnavailable": "לא הצלחנו להשלים את המחיקה. נסה שוב. לחיצה נוספת ממשיכה מהשלב שעצר.",
+  "deleteAccountUnavailable_f": "לא הצלחנו להשלים את המחיקה. נסי שוב. לחיצה נוספת ממשיכה מהשלב שעצר."
 }

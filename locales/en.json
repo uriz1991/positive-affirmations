@@ -190,8 +190,6 @@
   "deleteAccountNeedSignIn": "Sign in before deleting the account",
   "deleteAccountHelp": "How account deletion works",
   "deleteAccountStripeCancelFailed": "Could not cancel the Stripe subscription. Nothing was deleted. Try again, or email Uriz1991@gmail.com",
-  "deleteAccountStripeCustomerFailed": "The subscription was cancelled, but the Stripe customer record could not be deleted. Your data and sign-in are still there. Try again.",
-  "deleteAccountAuthFailed": "Could not delete the sign-in. Your data is still there. Try again.",
-  "deleteAccountDataLeftover": "The sign-in was deleted, but some cloud data may remain. Email Uriz1991@gmail.com",
-  "deleteAccountUnavailable": "The deletion service is unavailable right now. Nothing was deleted. Try again later."
+  "deleteAccountIncomplete": "Deletion did not finish, but you are still signed in. Tap Delete account again to continue.",
+  "deleteAccountUnavailable": "Deletion did not finish. Try again. Another tap continues from where it stopped."
 }

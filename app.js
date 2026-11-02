@@ -80,6 +80,12 @@ function accountDeletionBlocked() {
   try { return sessionStorage.getItem('account-deleted') === '1'; } catch { return false; }
 }
 
+// A restored session must keep the block so an old ID token cannot upload
+// the deleted copy. A person who chooses to sign in again is a new start.
+function clearAccountDeletedForFreshSignIn() {
+  try { sessionStorage.removeItem('account-deleted'); } catch {}
+}
+
 function isPlayBuild() {
   return document.body.classList.contains('play-build');
 }
@@ -2164,10 +2170,7 @@ async function pushToCloud() {
 
 async function handleGoogleSignIn() {
   if (!window.AppAuth) return;
-  // A deleted account blocks cloud sync for the rest of this tab so a
-  // still-valid ID token cannot upload the old copy. A new sign-in is
-  // intentional, so the block ends here.
-  try { sessionStorage.removeItem('account-deleted'); } catch {}
+  clearAccountDeletedForFreshSignIn();
   try {
     // A Trusted Web Activity blocks window.open, so popup sign-in fails there.
     // The website keeps the popup.
@@ -2191,8 +2194,8 @@ function clearAccountLocalData() {
 function deleteFailureKey(err) {
   const msg = String((err && err.message) || '');
   if (msg.indexOf('stripe-cancel-failed') !== -1) return 'deleteAccountStripeCancelFailed';
-  if (msg.indexOf('stripe-customer-delete-failed') !== -1) return 'deleteAccountStripeCustomerFailed';
-  if (msg.indexOf('auth-delete-failed') !== -1) return 'deleteAccountAuthFailed';
+  if (msg.indexOf('stripe-customer-delete-failed') !== -1) return 'deleteAccountIncomplete';
+  if (msg.indexOf('auth-delete-failed') !== -1) return 'deleteAccountIncomplete';
   if (err && (err.code === 'functions/unavailable' || err.code === 'functions/not-found')) {
     return 'deleteAccountUnavailable';
   }
@@ -2203,7 +2206,10 @@ async function resumePlayAuthRedirect() {
   if (!isPlayBuild() || !window.AppAuth?.getRedirectResult) return;
   try {
     const result = await window.AppAuth.getRedirectResult();
-    if (result && result.user) showToast(t('toastSignedIn'));
+    if (result && result.user) {
+    clearAccountDeletedForFreshSignIn();
+    showToast(t('toastSignedIn'));
+  }
   } catch {
     // A launch with no redirect in progress resolves to null. A thrown error
     // here is a failed sign-in; the person can tap the button again.
@@ -2211,13 +2217,12 @@ async function resumePlayAuthRedirect() {
   }
 }
 
-async function finishLocalAccountRemoval(extraToastKey) {
+async function finishLocalAccountRemoval() {
   try { sessionStorage.setItem('account-deleted', '1'); } catch {}
   cloudSyncEnabled = false;
   currentUser = null;
   clearAccountLocalData();
   try { await window.AppAuth.signOut(); } catch {}
-  if (extraToastKey) showToast(t(extraToastKey));
   showToast(t('deleteAccountDone'));
   setTimeout(() => window.location.reload(), 700);
 }
@@ -2233,9 +2238,8 @@ async function performAccountDeletion() {
   // local copy back. Known "nothing was deleted" errors clear it.
   try { sessionStorage.setItem('account-deleted', '1'); } catch {}
   cloudSyncEnabled = false;
-  const result = await window.AppAuth.deleteCloudAccount();
-  const extra = result && result.firestoreDeleted === false ? 'deleteAccountDataLeftover' : '';
-  await finishLocalAccountRemoval(extra);
+  await window.AppAuth.deleteCloudAccount();
+  await finishLocalAccountRemoval();
 }
 
 async function handleDeleteAccountConfirmed() {
@@ -2253,11 +2257,9 @@ async function handleDeleteAccountConfirmed() {
     if (dialog) dialog.classList.remove('active');
   } catch (err) {
     const key = deleteFailureKey(err);
-    const nothingDeleted = key === 'deleteAccountStripeCancelFailed'
-      || key === 'deleteAccountStripeCustomerFailed'
-      || key === 'deleteAccountAuthFailed'
-      || key === 'deleteAccountUnavailable';
-    if (nothingDeleted) {
+    // Only a failed Stripe cancel happens before any account data is touched.
+    // Later failures leave a pending deletion: stay blocked and try again.
+    if (key === 'deleteAccountStripeCancelFailed') {
       try { sessionStorage.removeItem('account-deleted'); } catch {}
       cloudSyncEnabled = !!currentUser;
     }
@@ -2440,6 +2442,9 @@ function removeAiCoachFromPool() {
 
 async function handleUpgradeClick() {
   if (isPlayBuild()) return;
+  // Same fresh-sign-in rule as the account button. The deletion block must
+  // not stay up while this signs in and starts checkout.
+  clearAccountDeletedForFreshSignIn();
   // Signing in used to be a hard stop here (a toast, then the user has to go
   // find the account tab themselves) — that's exactly the kind of extra step
   // that loses people right before Checkout, so do it inline instead.
@@ -2455,6 +2460,10 @@ async function handleUpgradeClick() {
       showToast(t('toastSignInError'));
       return;
     }
+  }
+  if (currentUser) {
+    cloudSyncEnabled = true;
+    await pushToCloud();
   }
   if (!window.AppAuth?.startCheckout) return;
   try {
