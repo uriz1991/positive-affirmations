@@ -152,6 +152,7 @@
   "toastCheckoutError_f": "לא הצלחנו לפתוח את מסך התשלום, נסי שוב",
   "toastPlanError": "יצירת התוכנית נכשלה, נסה שוב",
   "toastPlanError_f": "יצירת התוכנית נכשלה, נסי שוב",
+  "toastPlanAiUnavailable": "שירות הבינה המלאכותית לא זמין כרגע. נסו שוב מאוחר יותר.",
   "toastUpgradeProcessing": "מעבד את התשלום... זה ייקח כמה שניות",
   "personalPlanTitle": "התוכנית האישית שלך",
   "regeneratePlan": "🔄 צור תוכנית מחדש",
