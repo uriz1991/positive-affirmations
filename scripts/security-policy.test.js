@@ -113,23 +113,33 @@ check('gemini credit is refunded only for transport, 5xx, and quota failures', (
   assert.strictEqual(clipped.goal.length, GOAL_MAX);
   assert.ok(clipped.completedSteps[0].length <= 300);
   assert.ok(clipped.journal.every((line) => line.length <= JOURNAL_ENTRY_MAX));
+  const newestFirst = Array.from({ length: 12 }, (_, i) => 'j' + i);
+  const recent = clipPlanInput({ goalData: { goal: 'g', steps: [] }, journal: newestFirst });
+  assert.strictEqual(recent.journal[0], 'j0');
+  assert.strictEqual(recent.journal.length, 10);
+  assert.strictEqual(recent.journal.includes('j11'), false);
 });
 
 check('one Google account cannot redeem again, and a referrer is capped per month', () => {
+  const crypto = require('crypto');
+  const key = 'test-referral-key';
   const record = {
     uid: 'firebase-uid-1',
     email: 'Person@Example.com',
     providerData: [{ providerId: 'google.com', uid: 'google-subject', email: 'Person@Example.com' }]
   };
-  const again = referralIdentityKeys(record);
-  assert.deepStrictEqual(again, referralIdentityKeys(record));
+  const again = referralIdentityKeys(record, key);
+  assert.deepStrictEqual(again, referralIdentityKeys(record, key));
   assert.ok(again.length >= 1);
-  assert.notStrictEqual(again[0], 'google-subject');
+  const unsalted = crypto.createHash('sha256').update('google.com\ngoogle-subject').digest('hex');
+  assert.notStrictEqual(again[0], unsalted);
+  assert.notStrictEqual(again[0], referralIdentityKeys(record, 'other-key')[0]);
+  assert.deepStrictEqual(referralIdentityKeys(record, ''), []);
   const deleted = referralIdentityKeys({
     uid: 'firebase-uid-2',
     email: 'person@example.com',
     providerData: [{ providerId: 'google.com', uid: 'google-subject', email: 'person@example.com' }]
-  });
+  }, key);
   assert.deepStrictEqual(deleted, again);
   assert.strictEqual(referralMonth(Date.UTC(2026, 10, 2)), '2026-11');
   assert.strictEqual(referralRedeemPlan({

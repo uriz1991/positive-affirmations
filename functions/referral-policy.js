@@ -5,6 +5,7 @@ const crypto = require('crypto');
 const REFERRAL_BONUS_DAYS = 7;
 const MAX_BONUS_DAYS = 365;
 const REFERRALS_PER_MONTH = 3;
+const REFERRAL_RETENTION_MS = 365 * 24 * 60 * 60 * 1000;
 const NEW_ACCOUNT_MS = 24 * 60 * 60 * 1000;
 // creationTime and lastSignInTime match on the first sign-in. A few minutes
 // of slack covers clock skew. A later sign-in is not a new account.
@@ -47,14 +48,17 @@ function grantedBonusDays(addedMs) {
   return Math.round(Number(addedMs) / 86400000);
 }
 
-function hashReferralIdentity(value) {
-  return crypto.createHash('sha256').update(String(value)).digest('hex');
+// HMAC so the key is not a bare SHA-256 of an email or Google subject.
+// Without the secret the hash is useless; callers must fail closed.
+function hashReferralIdentity(value, key) {
+  if (typeof key !== 'string' || !key) return null;
+  return crypto.createHmac('sha256', key).update(String(value)).digest('hex');
 }
 
 // Google's subject (provider uid) is stable across Firebase user deletion.
 // Email covers a provider that has no stable subject. The Firebase uid is
 // only a fallback when Auth has neither.
-function referralIdentityKeys(userRecord) {
+function referralIdentityKeys(userRecord, key) {
   const raw = [];
   const providers = (userRecord && userRecord.providerData) || [];
   providers.forEach((provider) => {
@@ -69,7 +73,7 @@ function referralIdentityKeys(userRecord) {
     raw.push('email\n' + String(userRecord.email).trim().toLowerCase());
   }
   if (!raw.length && userRecord && userRecord.uid) raw.push('uid\n' + userRecord.uid);
-  return [...new Set(raw)].map(hashReferralIdentity);
+  return [...new Set(raw)].map((value) => hashReferralIdentity(value, key)).filter(Boolean);
 }
 
 function referralMonth(nowMs) {
@@ -101,6 +105,7 @@ module.exports = {
   REFERRAL_BONUS_DAYS,
   MAX_BONUS_DAYS,
   REFERRALS_PER_MONTH,
+  REFERRAL_RETENTION_MS,
   NEW_ACCOUNT_MS,
   FIRST_SESSION_SLACK_MS,
   validReferrerUid,

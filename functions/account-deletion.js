@@ -94,6 +94,38 @@ function refundOutcome(err) {
   return 'retry';
 }
 
+// Canceling a subscription that is already gone must not become a webhook 500.
+// Stripe retries that 500 for days.
+function subscriptionCancelIsSettled(err) {
+  if (isMissingStripeCustomer(err)) return true;
+  const code = err && (err.code || (err.raw && err.raw.code));
+  if (code === 'resource_missing') return true;
+  const msg = String((err && err.message) || '').toLowerCase();
+  return msg.includes('canceled') || msg.includes('cancelled');
+}
+
+// paid_at is Unix seconds. A charge from before the tombstone is the month
+// the person already used and must not be refunded. A charge after deletedAt
+// is a checkout that landed during deletion and still should be.
+function invoicePaidAfterDeletion(invoice, deletedAtMs) {
+  const deletedMs = Number(deletedAtMs);
+  if (!invoice || !Number.isFinite(deletedMs)) return false;
+  const paidAt = invoice.status_transitions && invoice.status_transitions.paid_at;
+  const paidSec = Number(paidAt);
+  if (!Number.isFinite(paidSec) || paidSec <= 0) return false;
+  return paidSec * 1000 > deletedMs;
+}
+
+// What the deletion webhook should do with a subscription event.
+// Already-ended subscriptions are not cancelled again. The last paid month
+// is not refunded. A checkout paid after the tombstone still is.
+function deletionSubscriptionAction(status, invoice, deletedAtMs) {
+  return {
+    cancel: subscriptionNeedsCancel(status),
+    refund: invoicePaidAfterDeletion(invoice, deletedAtMs)
+  };
+}
+
 // createRefund is called only when money was collected. already-refunded is success.
 async function applyRefundPlan(plan, createRefund) {
   if (!plan || plan.action === 'nothing-to-refund') return 'nothing-to-refund';
@@ -133,5 +165,8 @@ module.exports = {
   refundPlanFromInvoice,
   refundOutcome,
   applyRefundPlan,
-  blockedSenderUids
+  blockedSenderUids,
+  subscriptionCancelIsSettled,
+  invoicePaidAfterDeletion,
+  deletionSubscriptionAction
 };

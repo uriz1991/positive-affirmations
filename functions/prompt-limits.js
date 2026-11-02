@@ -21,7 +21,8 @@ function clipPlanInput(userData) {
   const journal = Array.isArray(userData && userData.journal) ? userData.journal : [];
   return {
     goal: clipText(goalData && goalData.goal, GOAL_MAX),
-    journal: journal.slice(-JOURNAL_PROMPT_COUNT).map((entry) => clipText(entry, JOURNAL_ENTRY_MAX)).filter(Boolean),
+    // Journal entries are stored newest-first, so the head of the list is recent.
+    journal: journal.slice(0, JOURNAL_PROMPT_COUNT).map((entry) => clipText(entry, JOURNAL_ENTRY_MAX)).filter(Boolean),
     completedSteps: steps.filter((step) => step && step.done).map((step) => clipText(step.text, STEP_MAX)).filter(Boolean).slice(0, STEP_COUNT),
     pendingSteps: steps.filter((step) => step && !step.done).map((step) => clipText(step.text, STEP_MAX)).filter(Boolean).slice(0, STEP_COUNT)
   };

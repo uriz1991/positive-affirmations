@@ -24,6 +24,14 @@ Code changes for the 2026-11-02 review are in the repo. Nothing in this file has
 
 8. **Always pass `--only`.** `firebase.json` now includes `firestore.rules`. A bare `firebase deploy` publishes the rules and the functions together. Use `firebase deploy --only functions` or `firebase deploy --only firestore:rules`. The GitHub workflow already passes `--only functions`.
 
+9. **Deploy order.** Publish the website first (it bumps the service worker cache and clips journal and personal affirmations before sync). Then deploy functions. Then publish rules with `firebase deploy --only firestore:rules`. An old cached client that rewrites an over-limit journal or personal-affirmation list has the whole sync rejected until it loads the new page.
+
+10. **Referral hash secret, before the functions deploy.** Create `REFERRAL_HASH_KEY` in Secret Manager and let the functions runtime read it. `redeemReferral`, `deleteAccount`, and `finishPendingAccountDeletions` declare it with `defineSecret`. The deploy fails if the secret does not exist. A long random value is enough. Do not commit it.
+
+    `firebase functions:secrets:set REFERRAL_HASH_KEY --project positive-affirmations-9f382`
+
+11. **Referral identity retention.** `referralIdentities` documents store `expireAt` about one year after redemption, and account deletion removes `referrerUid` and `firebaseUid` from them. The hash key remains until TTL deletes the document. Enable a Firestore TTL policy on collection `referralIdentities`, field `expireAt`. That policy is a console setting and is not created by this repo.
+
 ## Runtime service accounts
 
 Every Cloud Function still runs as the default compute service account, which has Editor. `setGlobalOptions` does not set `serviceAccount`.

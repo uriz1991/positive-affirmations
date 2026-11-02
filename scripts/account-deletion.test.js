@@ -12,7 +12,10 @@ const {
   invoiceIdFromCheckoutSession,
   refundPlanFromInvoice,
   applyRefundPlan,
-  blockedSenderUids
+  blockedSenderUids,
+  subscriptionCancelIsSettled,
+  invoicePaidAfterDeletion,
+  deletionSubscriptionAction
 } = require('../functions/account-deletion');
 
 let failures = 0;
@@ -180,6 +183,42 @@ check('charge_already_refunded is success and is not retried', async () => {
     throw err;
   });
   assert.strictEqual(outcome, 'already-refunded');
+});
+
+check('deleting an account does not refund the month already paid', () => {
+  const deletedAt = Date.parse('2026-11-02T12:00:00Z');
+  const paidBefore = Math.floor(Date.parse('2026-10-02T12:00:00Z') / 1000);
+  const paidAfter = Math.floor(Date.parse('2026-11-02T12:05:00Z') / 1000);
+  const usedMonth = {
+    id: 'in_used',
+    amount_paid: 1490,
+    status_transitions: { paid_at: paidBefore }
+  };
+  const duringDeletion = {
+    id: 'in_late',
+    amount_paid: 1490,
+    status_transitions: { paid_at: paidAfter }
+  };
+  const alreadyEnded = deletionSubscriptionAction('canceled', usedMonth, deletedAt);
+  assert.strictEqual(alreadyEnded.cancel, false);
+  assert.strictEqual(alreadyEnded.refund, false);
+  const cancelOnly = deletionSubscriptionAction('active', usedMonth, deletedAt);
+  assert.strictEqual(cancelOnly.cancel, true);
+  assert.strictEqual(cancelOnly.refund, false);
+  assert.strictEqual(invoicePaidAfterDeletion(usedMonth, deletedAt), false);
+  const checkoutAfterDelete = deletionSubscriptionAction('active', duringDeletion, deletedAt);
+  assert.strictEqual(checkoutAfterDelete.cancel, true);
+  assert.strictEqual(checkoutAfterDelete.refund, true);
+  assert.strictEqual(invoicePaidAfterDeletion({
+    id: 'in_same',
+    amount_paid: 1490,
+    status_transitions: { paid_at: Math.floor(deletedAt / 1000) }
+  }, deletedAt), false);
+  assert.strictEqual(subscriptionCancelIsSettled({ code: 'resource_missing' }), true);
+  assert.strictEqual(subscriptionCancelIsSettled({
+    message: 'You cannot cancel a subscription that is canceled.'
+  }), true);
+  assert.strictEqual(subscriptionCancelIsSettled({ code: 'rate_limit', message: 'slow down' }), false);
 });
 
 check('a failed deletedAccounts read blocks every candidate send', () => {
