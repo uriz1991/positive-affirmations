@@ -2481,7 +2481,13 @@ async function handleUpgradeClick() {
     const url = await window.AppAuth.startCheckout(STRIPE_MONTHLY_PRICE_ID);
     logAnalyticsEvent('checkout_started');
     window.location.href = url;
-  } catch {
+  } catch (err) {
+    // past_due / unpaid: checkout is refused. The portal is how they pay,
+    // and it does not require isPro.
+    if (err && err.code === 'functions/failed-precondition') {
+      await handleManagePortal();
+      return;
+    }
     showToast(t('toastCheckoutError'));
   }
 }

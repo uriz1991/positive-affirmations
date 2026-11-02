@@ -80,6 +80,19 @@ async function main() {
       if (saved.data().favorites.length !== 2) throw new Error('favorites were not saved');
     });
 
+    await check('a null goal does not reject the rest of the sync', async () => {
+      const alice = env.authenticatedContext('alice').firestore();
+      await assertSucceeds(setDoc(doc(alice, 'users/alice'), {
+        goalData: null,
+        favorites: ['asmdeaj'],
+        updatedAt: Date.now()
+      }, { merge: true }));
+      const saved = await getDoc(doc(alice, 'users/alice'));
+      if (!saved.data().favorites || saved.data().favorites[0] !== 'asmdeaj') {
+        throw new Error('favorites were dropped with a null goal');
+      }
+    });
+
     await check('fcm token add and remove are allowed', async () => {
       const alice = env.authenticatedContext('alice').firestore();
       await assertSucceeds(setDoc(doc(alice, 'users/alice'), {

@@ -37,7 +37,7 @@ service cloud.firestore {
         && (!('reminders' in k) || d.reminders is list)
         && (!('fcmTokens' in k) || (d.fcmTokens is list && d.fcmTokens.size() <= 20))
         && (!('fcmTokenBound' in k) || d.fcmTokenBound is map)
-        && (!('goalData' in k) || d.goalData is map)
+        && (!('goalData' in k) || d.goalData == null || d.goalData is map)
         && (!('timezone' in k) || (d.timezone is string && d.timezone.size() <= 64))
         && (!('addressForm' in k) || d.addressForm in ['m', 'f'])
         && (!('language' in k) || d.language in ['he', 'en', 'fr', 'es'])

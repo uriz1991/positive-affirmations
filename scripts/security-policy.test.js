@@ -8,6 +8,10 @@ const {
   isAllowedPrice,
   trialEligible,
   checkoutBlocked,
+  CHECKOUT_SESSION_TTL_MS,
+  checkoutExpiresAtSeconds,
+  reserveCheckout,
+  portalCustomerId,
   shouldApplyBillingEvent,
   billingPatchFromSubscription
 } = require('../functions/billing-policy');
@@ -86,6 +90,43 @@ check('an open subscription blocks another checkout; a canceled one does not', (
   assert.strictEqual(checkoutBlocked({ status: 'paused' }), true);
   assert.strictEqual(checkoutBlocked({ status: 'canceled' }), false);
   assert.strictEqual(checkoutBlocked({ status: 'incomplete_expired' }), false);
+});
+
+check('an open checkout session is reused and does not burn the trial', () => {
+  const now = 1_700_000_000_000;
+  assert.strictEqual(checkoutExpiresAtSeconds(now), Math.floor(now / 1000) + CHECKOUT_SESSION_TTL_MS / 1000);
+  const fresh = reserveCheckout(null, now);
+  assert.strictEqual(fresh.action, 'create');
+  assert.strictEqual(fresh.trial, true);
+  assert.strictEqual(Object.prototype.hasOwnProperty.call(fresh, 'trialUsed'), false);
+
+  const abandoned = {
+    pendingCheckoutSessionId: 'cs_old',
+    pendingCheckoutUrl: 'https://checkout.stripe.com/old',
+    pendingCheckoutExpiresAt: now - 1
+  };
+  assert.strictEqual(trialEligible(abandoned), true);
+  assert.strictEqual(reserveCheckout(abandoned, now).action, 'create');
+
+  const open = reserveCheckout({
+    pendingCheckoutSessionId: 'cs_live',
+    pendingCheckoutUrl: 'https://checkout.stripe.com/live',
+    pendingCheckoutExpiresAt: now + 60 * 1000
+  }, now);
+  assert.strictEqual(open.action, 'reuse');
+  assert.strictEqual(open.url, 'https://checkout.stripe.com/live');
+  assert.strictEqual(open.sessionId, 'cs_live');
+
+  assert.strictEqual(reserveCheckout({ pendingCheckoutClaim: now + 1000 }, now).action, 'in-progress');
+  assert.strictEqual(reserveCheckout({ pendingCheckoutClaim: now - 1 }, now).action, 'create');
+});
+
+check('past_due and unpaid customers can open the portal without being Pro', () => {
+  assert.strictEqual(portalCustomerId({ status: 'past_due', isPro: false, stripeCustomerId: 'cus_due' }), 'cus_due');
+  assert.strictEqual(portalCustomerId({ status: 'unpaid', isPro: false, stripeCustomerId: ' cus_unpaid ' }), 'cus_unpaid');
+  assert.strictEqual(portalCustomerId({ status: 'past_due', isPro: false }), null);
+  assert.strictEqual(reserveCheckout({ status: 'past_due', stripeCustomerId: 'cus_due' }, 1).action, 'blocked');
+  assert.strictEqual(reserveCheckout({ status: 'unpaid', stripeCustomerId: 'cus_unpaid' }, 1).action, 'blocked');
 });
 
 check('an older billing event cannot overwrite a newer one', () => {
@@ -275,6 +316,10 @@ check('callable errors do not echo Stripe or Gemini messages', () => {
   assert.ok(src.includes('Could not start checkout. Try again.'));
   assert.ok(src.includes('AI generation failed. Try again.'));
   assert.ok(src.includes("res.status(400).send('Invalid signature')"));
+  const trialWrites = src.match(/trialUsed:\s*true/g) || [];
+  assert.strictEqual(trialWrites.length, 1);
+  assert.ok(src.includes('expires_at: expiresAt'));
+  assert.ok(src.includes('pendingCheckoutSessionId: session.id'));
 });
 
 if (failures) {

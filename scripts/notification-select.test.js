@@ -12,6 +12,7 @@ const {
   isFavoriteEntry,
   withoutFavorite,
   favoriteDisplayText,
+  fcmTokensForSave,
   assignTokenOwners,
   tokensForUser,
   tokenFieldKey
@@ -234,6 +235,24 @@ check('a device token stays with the newest signed-in user', () => {
     { uid: 'user-b', fcmTokens: [phone], fcmTokenBoundAt: 200 }
   ]);
   assert.strictEqual(laptopRefresh.get(phone).uid, 'user-b');
+});
+
+check('a 21st fcm token drops the oldest instead of growing past 20', () => {
+  const bound = {};
+  const existing = [];
+  for (let i = 0; i < 20; i++) {
+    const token = 'token-' + i;
+    existing.push(token);
+    bound[tokenFieldKey(token)] = i + 1;
+  }
+  const next = fcmTokensForSave(existing, bound, 'token-new', 20);
+  assert.strictEqual(next.length, 20);
+  assert.strictEqual(next.includes('token-0'), false);
+  assert.strictEqual(next.includes('token-19'), true);
+  assert.strictEqual(next[next.length - 1], 'token-new');
+  const again = fcmTokensForSave(next, bound, 'token-19', 20);
+  assert.strictEqual(again.length, 20);
+  assert.strictEqual(again.includes('token-19'), true);
 });
 
 check('recent history stays capped at 40', () => {

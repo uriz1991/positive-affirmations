@@ -4,6 +4,11 @@
 const ALLOWED_PRICE_IDS = ['price_1UAlkS5TpYQiqdPxShalBZVP'];
 
 const PRO_STATUSES = ['active', 'trialing'];
+// Stripe requires expires_at to be at least 30 minutes out and at most 24 hours.
+const CHECKOUT_SESSION_TTL_MS = 30 * 60 * 1000;
+// Held only while this process is calling Stripe. A crash must not block
+// checkout for the whole session lifetime.
+const CHECKOUT_CLAIM_TTL_MS = 2 * 60 * 1000;
 
 function isAllowedPrice(priceId) {
   return typeof priceId === 'string' && ALLOWED_PRICE_IDS.includes(priceId);
@@ -28,6 +33,45 @@ function checkoutBlocked(sub) {
   if (sub.isPro) return true;
   if (!sub.status) return false;
   return sub.status !== 'canceled' && sub.status !== 'incomplete_expired';
+}
+
+function checkoutExpiresAtSeconds(nowMs) {
+  return Math.floor(Number(nowMs) / 1000) + Math.floor(CHECKOUT_SESSION_TTL_MS / 1000);
+}
+
+// A session the user can still pay in. An abandoned or expired one is not a
+// trial and must not be treated as one.
+function openPendingCheckout(sub, nowMs) {
+  if (!sub || !sub.pendingCheckoutSessionId || !sub.pendingCheckoutUrl) return null;
+  const expiresAt = Number(sub.pendingCheckoutExpiresAt);
+  if (!Number.isFinite(expiresAt) || expiresAt <= nowMs) return null;
+  return { sessionId: sub.pendingCheckoutSessionId, url: sub.pendingCheckoutUrl };
+}
+
+// blocked: send the user to the portal.
+// reuse: a Checkout session is still open; hand back that URL.
+// in-progress: another call is creating the session; do not create a second one.
+// create: no trial flag is written here. The webhook sets trialUsed.
+function reserveCheckout(sub, nowMs) {
+  if (checkoutBlocked(sub)) return { action: 'blocked' };
+  const open = openPendingCheckout(sub, nowMs);
+  if (open) return { action: 'reuse', url: open.url, sessionId: open.sessionId };
+  const claimUntil = Number(sub && sub.pendingCheckoutClaim);
+  if (Number.isFinite(claimUntil) && claimUntil > nowMs) return { action: 'in-progress' };
+  return {
+    action: 'create',
+    trial: trialEligible(sub),
+    customerId: (sub && sub.stripeCustomerId) || null,
+    claimUntil: nowMs + CHECKOUT_CLAIM_TTL_MS
+  };
+}
+
+// Portal access follows the Stripe customer, not isPro. past_due and unpaid
+// customers still need the portal to pay.
+function portalCustomerId(sub) {
+  if (!sub || typeof sub.stripeCustomerId !== 'string') return null;
+  const id = sub.stripeCustomerId.trim();
+  return id || null;
 }
 
 function subscriptionPriceId(subscription) {
@@ -84,9 +128,15 @@ function billingPatchFromSubscription(subscription, eventCreated) {
 module.exports = {
   ALLOWED_PRICE_IDS,
   PRO_STATUSES,
+  CHECKOUT_SESSION_TTL_MS,
+  CHECKOUT_CLAIM_TTL_MS,
   isAllowedPrice,
   trialEligible,
   checkoutBlocked,
+  checkoutExpiresAtSeconds,
+  openPendingCheckout,
+  reserveCheckout,
+  portalCustomerId,
   subscriptionPriceId,
   customerIdOf,
   shouldApplyBillingEvent,

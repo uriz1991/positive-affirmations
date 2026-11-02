@@ -78,8 +78,10 @@ const {
 } = require('./account-deletion');
 const {
   isAllowedPrice,
-  trialEligible,
-  checkoutBlocked,
+  checkoutExpiresAtSeconds,
+  openPendingCheckout,
+  reserveCheckout,
+  portalCustomerId,
   customerIdOf,
   shouldApplyBillingEvent,
   billingPatchFromSubscription
@@ -336,31 +338,39 @@ exports.createCheckoutSession = onCall({ secrets: [stripeSecretKey] }, async (re
 
   const uid = request.auth.uid;
   const subRef = db.doc('subscriptions/' + uid);
+  const now = Date.now();
   let reserved;
   try {
     reserved = await db.runTransaction(async (tx) => {
       const snap = await tx.get(subRef);
       const data = snap.exists ? snap.data() : null;
-      if (checkoutBlocked(data)) return { blocked: true };
-      const trial = trialEligible(data);
-      if (trial) {
-        tx.set(subRef, { trialUsed: true, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+      const decision = reserveCheckout(data, now);
+      if (decision.action === 'create') {
+        // Claim only. trialUsed stays unset until the webhook sees a real
+        // subscription, so backing out of Checkout does not burn the trial.
+        tx.set(subRef, {
+          pendingCheckoutClaim: decision.claimUntil,
+          updatedAt: FieldValue.serverTimestamp()
+        }, { merge: true });
       }
-      return {
-        blocked: false,
-        trial,
-        customerId: (data && data.stripeCustomerId) || null
-      };
+      return decision;
     });
   } catch (err) {
     logger.error('Checkout reservation failed', { uid, message: err.message });
     throw new HttpsError('internal', 'Could not start checkout. Try again.');
   }
-  if (reserved.blocked) {
+  if (reserved.action === 'blocked') {
     throw new HttpsError('failed-precondition', 'This account already has a subscription. Use the subscription portal.');
+  }
+  if (reserved.action === 'reuse') return { url: reserved.url };
+  if (reserved.action === 'in-progress') {
+    const url = await waitForPendingCheckoutUrl(subRef);
+    if (url) return { url };
+    throw new HttpsError('aborted', 'Checkout is already starting. Try again.');
   }
 
   const stripe = stripeClient();
+  const expiresAt = checkoutExpiresAtSeconds(now);
   const subscriptionData = { metadata: { uid, priceId } };
   if (reserved.trial) subscriptionData.trial_period_days = 7;
   const params = {
@@ -370,7 +380,8 @@ exports.createCheckoutSession = onCall({ secrets: [stripeSecretKey] }, async (re
     metadata: { uid, priceId },
     subscription_data: subscriptionData,
     success_url: `${APP_URL}?upgraded=1`,
-    cancel_url: APP_URL
+    cancel_url: APP_URL,
+    expires_at: expiresAt
   };
   if (reserved.customerId) params.customer = reserved.customerId;
 
@@ -379,23 +390,59 @@ exports.createCheckoutSession = onCall({ secrets: [stripeSecretKey] }, async (re
     session = await stripe.checkout.sessions.create(params);
   } catch (err) {
     logger.error('Stripe checkout session creation failed', { uid, message: err.message, type: err.type, code: err.code });
-    if (reserved.trial) await rollBackTrialReservation(subRef, uid);
+    await clearCheckoutClaim(subRef, uid);
     throw new HttpsError('internal', 'Could not start checkout. Try again.');
   }
 
-  return { url: session.url };
+  try {
+    const saved = await db.runTransaction(async (tx) => {
+      const snap = await tx.get(subRef);
+      const data = snap.exists ? snap.data() : null;
+      if (reserveCheckout(data, Date.now()).action === 'blocked') return { blocked: true };
+      const open = openPendingCheckout(data, Date.now());
+      if (open && open.sessionId !== session.id) return { url: open.url };
+      tx.set(subRef, {
+        pendingCheckoutSessionId: session.id,
+        pendingCheckoutUrl: session.url,
+        pendingCheckoutExpiresAt: (session.expires_at || expiresAt) * 1000,
+        pendingCheckoutClaim: FieldValue.delete(),
+        updatedAt: FieldValue.serverTimestamp()
+      }, { merge: true });
+      return { url: session.url };
+    });
+    if (saved.blocked) {
+      throw new HttpsError('failed-precondition', 'This account already has a subscription. Use the subscription portal.');
+    }
+    return { url: saved.url };
+  } catch (err) {
+    if (err instanceof HttpsError) throw err;
+    logger.error('Failed to store pending checkout session', { uid, message: err.message });
+    throw new HttpsError('internal', 'Could not start checkout. Try again.');
+  }
 });
 
-async function rollBackTrialReservation(subRef, uid) {
+async function waitForPendingCheckoutUrl(subRef) {
+  for (let attempt = 0; attempt < 8; attempt++) {
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    const snap = await subRef.get();
+    const open = openPendingCheckout(snap.data(), Date.now());
+    if (open) return open.url;
+    const claimUntil = Number(snap.data() && snap.data().pendingCheckoutClaim);
+    if (!Number.isFinite(claimUntil) || claimUntil <= Date.now()) return null;
+  }
+  return null;
+}
+
+async function clearCheckoutClaim(subRef, uid) {
   try {
     await db.runTransaction(async (tx) => {
       const snap = await tx.get(subRef);
       const data = snap.data() || {};
-      if (data.stripeSubscriptionId || data.isPro || data.status) return;
-      tx.set(subRef, { trialUsed: false }, { merge: true });
+      if (data.pendingCheckoutSessionId) return;
+      tx.set(subRef, { pendingCheckoutClaim: FieldValue.delete() }, { merge: true });
     });
   } catch (err) {
-    logger.error('Failed to roll back trial reservation', { uid, message: err.message });
+    logger.error('Failed to clear checkout claim', { uid, message: err.message });
   }
 }
 
@@ -409,9 +456,9 @@ exports.createPortalSession = onCall({ secrets: [stripeSecretKey] }, async (requ
   const uid = request.auth.uid;
 
   const subSnap = await db.doc('subscriptions/' + uid).get();
-  const customerId = subSnap.data()?.stripeCustomerId;
+  const customerId = portalCustomerId(subSnap.data());
   if (!customerId) {
-    throw new HttpsError('failed-precondition', 'No active subscription found for this account.');
+    throw new HttpsError('failed-precondition', 'No Stripe customer found for this account.');
   }
 
   const stripe = stripeClient();
@@ -543,6 +590,10 @@ async function writeSubscriptionSnapshot(uid, subscription, event, customerId) {
     billingEventAt: patch.billingEventAt,
     billingEventId: event.id,
     trialUsed: true,
+    pendingCheckoutSessionId: FieldValue.delete(),
+    pendingCheckoutUrl: FieldValue.delete(),
+    pendingCheckoutExpiresAt: FieldValue.delete(),
+    pendingCheckoutClaim: FieldValue.delete(),
     updatedAt: FieldValue.serverTimestamp()
   }, { merge: true });
   if (storedCustomer) {
