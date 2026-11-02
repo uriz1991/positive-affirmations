@@ -2486,6 +2486,7 @@ async function handleGeneratePlan() {
   } catch (err) {
     if (err?.code === 'functions/failed-precondition') showToast(t('toastPlanNeedsGoal'));
     else if (err?.code === 'functions/resource-exhausted') showToast(t('toastPlanDailyLimit'));
+    else if (err?.code === 'functions/unavailable') showToast(t('toastPlanAiUnavailable'));
     else showToast(t('toastPlanError'));
   } finally {
     if (btn) btn.disabled = false;

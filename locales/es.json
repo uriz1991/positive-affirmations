@@ -114,6 +114,7 @@
   "toastSignInFirst": "Inicia sesión con Google antes de mejorar",
   "toastCheckoutError": "No se pudo abrir el pago, inténtalo de nuevo",
   "toastPlanError": "No se pudo generar tu plan, inténtalo de nuevo",
+  "toastPlanAiUnavailable": "El servicio de IA no está disponible ahora. Inténtalo de nuevo más tarde.",
   "toastUpgradeProcessing": "Procesando tu pago... esto toma unos segundos",
   "personalPlanTitle": "Tu plan personal",
   "regeneratePlan": "🔄 Regenerar plan",

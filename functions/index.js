@@ -35,18 +35,37 @@ function secretValue(secretParam) {
   return secretParam.value().trim();
 }
 
-// The Gemini SDK's errors carry the real reason (rate limit, invalid model,
-// bad key, etc.) in fields beyond .message — logging only err.message has
-// repeatedly turned "why did this fail" into a second round-trip through
-// production logs. Capture everything useful in one place.
-function describeGeminiError(err) {
-  return {
-    message: err?.message,
-    name: err?.name,
-    status: err?.status,
-    statusText: err?.statusText,
-    errorDetails: err?.errorDetails
-  };
+// One stable Gemini Flash model id for every generateContent call.
+// Checked 2026-11-02: stable, and no shutdown date announced.
+const GEMINI_MODEL = 'gemini-3.8-flash';
+
+// Status or code plus a short message. Omit errorDetails, prompts, journal
+// text, and user ids — errorDetails can echo the request.
+function geminiErrorStatus(err) {
+  if (!err || typeof err !== 'object') return null;
+  if (err.status != null && err.status !== '') return err.status;
+  if (err.code != null && err.code !== '') return err.code;
+  return null;
+}
+
+function shortGeminiMessage(err) {
+  const raw = typeof err?.message === 'string' ? err.message.split('\n')[0] : '';
+  const compact = raw.replace(/\s+/g, ' ').trim();
+  // Prompts and journal text are Hebrew. Keep a short English API line only.
+  if (!compact || compact.length > 180 || /[\u0590-\u05FF]/.test(compact)) {
+    return 'Gemini request failed';
+  }
+  return compact;
+}
+
+function logGeminiFailure(functionName, err, extra) {
+  logger.error('Gemini call failed', {
+    functionName,
+    model: GEMINI_MODEL,
+    status: geminiErrorStatus(err),
+    message: shortGeminiMessage(err),
+    ...(extra || {})
+  });
 }
 
 // Callable, HTTP, and scheduled functions stay in FUNCTION_REGION.
@@ -237,7 +256,7 @@ exports.generateDailyAffirmations = onSchedule({
   secrets: [geminiApiKey]
 }, async () => {
   const genAI = new GoogleGenerativeAI(secretValue(geminiApiKey));
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+  const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
 
   // Give the model real examples of what users actually loved, as style
   // reference only — it must write new original lines, never copy these.
@@ -278,7 +297,7 @@ exports.generateDailyAffirmations = onSchedule({
       });
     } catch (err) {
       // One category failing (e.g. transient API error) shouldn't block the rest.
-      logger.error('Daily affirmation generation failed for category', { category: key, ...describeGeminiError(err) });
+      logGeminiFailure('generateDailyAffirmations', err, { category: key });
     }
   }
 
@@ -519,7 +538,7 @@ exports.generatePersonalPlan = onCall({ secrets: [geminiApiKey] }, async (reques
   const completedSteps = (userData.goalData?.steps || []).filter(s => s.done).map(s => s.text);
 
   const genAI = new GoogleGenerativeAI(secretValue(geminiApiKey));
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+  const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
 
   const prompt = [
     `היעד של המשתמש: "${goal}"`,
@@ -537,8 +556,8 @@ exports.generatePersonalPlan = onCall({ secrets: [geminiApiKey] }, async (reques
   try {
     result = await model.generateContent(prompt);
   } catch (err) {
-    logger.error('Gemini generation failed for personal plan', describeGeminiError(err));
-    throw new HttpsError('internal', `AI generation failed: ${err.message}`);
+    logGeminiFailure('generatePersonalPlan', err);
+    throw new HttpsError('unavailable', 'AI service is temporarily unavailable.');
   }
 
   let parsed;
@@ -579,7 +598,7 @@ exports.sendWeeklyCoachInsight = onSchedule({
   const deletedIds = await uidsBlockedFromSending(usersSnap.docs.map((doc) => doc.id));
   const tokenOwner = assignTokenOwners(usersSnap.docs.map(userTokenRecord));
   const genAI = new GoogleGenerativeAI(secretValue(geminiApiKey));
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+  const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
 
   await Promise.all(usersSnap.docs.map(async (userDoc) => {
     const uid = userDoc.id;
@@ -628,7 +647,7 @@ exports.sendWeeklyCoachInsight = onSchedule({
       try {
         result = await model.generateContent(prompt);
       } catch (err) {
-        logger.error('Weekly coach Gemini call failed', { uid, ...describeGeminiError(err) });
+        logGeminiFailure('sendWeeklyCoachInsight', err);
         return;
       }
 

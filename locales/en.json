@@ -115,6 +115,7 @@
   "toastSignInFirst": "Sign in with Google before upgrading",
   "toastCheckoutError": "Couldn't open checkout, please try again",
   "toastPlanError": "Couldn't generate your plan, please try again",
+  "toastPlanAiUnavailable": "The AI service is unavailable right now. Please try again later.",
   "toastUpgradeProcessing": "Processing your payment... this takes a few seconds",
   "personalPlanTitle": "Your personal plan",
   "regeneratePlan": "🔄 Regenerate plan",
