@@ -14,8 +14,9 @@ import {
   doc,
   getDoc,
   setDoc,
-  arrayUnion,
+  runTransaction,
   arrayRemove,
+  deleteField,
   collection,
   query,
   orderBy,
@@ -59,6 +60,65 @@ const generatePersonalPlanFn = httpsCallable(functions, 'generatePersonalPlan');
 const redeemReferralFn = httpsCallable(functions, 'redeemReferral');
 const deleteAccountFn = httpsCallable(functions, 'deleteAccount');
 
+// Fields saveUserData may write. fcmTokens and fcmTokenBound are written
+// only by saveFcmToken / removeFcmToken. Server-owned fields (isPro,
+// referredBy, referralCount, aiGenCount, personalPlan, …) are not here.
+function fcmBoundPatch(existing, nextTokens, newKey, select) {
+  const patch = {};
+  if (newKey) patch[newKey] = Date.now();
+  if (select && select.tokenFieldKey) {
+    existing.forEach((old) => {
+      if (nextTokens.indexOf(old) !== -1) return;
+      const oldKey = select.tokenFieldKey(old);
+      if (oldKey && oldKey !== newKey) patch[oldKey] = deleteField();
+    });
+  }
+  return Object.keys(patch).length ? patch : null;
+}
+
+function clipText(value, max) {
+  return typeof value === 'string' && value.length > max ? value.slice(0, max) : value;
+}
+
+function clipStringList(list, maxItems, maxLen) {
+  if (!Array.isArray(list)) return list;
+  return list.slice(0, maxItems).map((item) => clipText(item, maxLen));
+}
+
+function clipGoalData(goalData) {
+  if (goalData == null || typeof goalData !== 'object' || Array.isArray(goalData)) return goalData;
+  const next = Object.assign({}, goalData);
+  if (typeof next.goal === 'string') next.goal = clipText(next.goal, 500);
+  if (Array.isArray(next.steps)) {
+    next.steps = next.steps.slice(0, 20).map((step) => {
+      if (!step || typeof step !== 'object') return step;
+      const copy = Object.assign({}, step);
+      copy.text = clipText(copy.text, 300);
+      return copy;
+    });
+  }
+  return next;
+}
+
+function fallbackFcmTokens(existing, token, limit) {
+  const list = (Array.isArray(existing) ? existing : []).filter((item) => typeof item === 'string' && item);
+  if (!token || list.indexOf(token) !== -1) return list.slice(0, limit);
+  const room = list.length >= limit ? list.slice(list.length - (limit - 1)) : list.slice();
+  room.push(token);
+  return room;
+}
+
+const CLIENT_USER_FIELDS = [
+  'goalData',
+  'journal',
+  'favorites',
+  'personalAffirmations',
+  'reminders',
+  'timezone',
+  'addressForm',
+  'language'
+];
+
 window.AppAuth = {
   signIn: () => signInWithPopup(auth, provider),
   // Trusted Web Activity blocks window.open, so the Play build uses a redirect.
@@ -76,21 +136,47 @@ window.AppAuth = {
     const snap = await getDoc(doc(db, 'users', uid));
     return snap.exists() ? snap.data() : null;
   },
+  // Must stay inside the firestore.rules clientUserFields() allowlist.
+  // Unknown keys are dropped so one extra field cannot fail the whole sync.
   saveUserData: async (uid, data) => {
-    await setDoc(doc(db, 'users', uid), { ...data, updatedAt: Date.now() }, { merge: true });
+    const payload = { updatedAt: Date.now() };
+    CLIENT_USER_FIELDS.forEach((key) => {
+      if (!data || !Object.prototype.hasOwnProperty.call(data, key)) return;
+      // null is not a map, and one null field used to reject the whole sync.
+      if (key === 'goalData' && data[key] == null) return;
+      if (key === 'goalData') payload.goalData = clipGoalData(data.goalData);
+      else if (key === 'journal') payload.journal = clipStringList(data.journal, 100, 300);
+      else if (key === 'favorites') payload.favorites = clipStringList(data.favorites, 200, 500);
+      else if (key === 'personalAffirmations') payload.personalAffirmations = clipStringList(data.personalAffirmations, 50, 500);
+      else if (key === 'reminders') payload.reminders = Array.isArray(data.reminders) ? data.reminders.slice(0, 30) : data.reminders;
+      else payload[key] = data[key];
+    });
+    await setDoc(doc(db, 'users', uid), payload, { merge: true });
   },
   saveFcmToken: async (uid, token) => {
-    const key = window.NotificationSelect && window.NotificationSelect.tokenFieldKey
-      ? window.NotificationSelect.tokenFieldKey(token)
-      : null;
-    const patch = { fcmTokens: arrayUnion(token) };
-    // Only this device's token gets a new time. Other tokens on the account
-    // keep the time they were saved with.
-    if (key) patch.fcmTokenBound = { [key]: Date.now() };
-    await setDoc(doc(db, 'users', uid), patch, { merge: true });
+    const ref = doc(db, 'users', uid);
+    await runTransaction(db, async (tx) => {
+      const snap = await tx.get(ref);
+      const data = snap.exists() ? snap.data() : {};
+      const existing = Array.isArray(data.fcmTokens) ? data.fcmTokens : [];
+      const bound = data.fcmTokenBound && typeof data.fcmTokenBound === 'object' ? data.fcmTokenBound : null;
+      const select = window.NotificationSelect;
+      const nextTokens = select && select.fcmTokensForSave
+        ? select.fcmTokensForSave(existing, bound, token, 20)
+        : fallbackFcmTokens(existing, token, 20);
+      const key = select && select.tokenFieldKey ? select.tokenFieldKey(token) : null;
+      const patch = { fcmTokens: nextTokens };
+      const boundPatch = fcmBoundPatch(existing, nextTokens, key, select);
+      if (boundPatch) patch.fcmTokenBound = boundPatch;
+      tx.set(ref, patch, { merge: true });
+    });
   },
   removeFcmToken: async (uid, token) => {
-    await setDoc(doc(db, 'users', uid), { fcmTokens: arrayRemove(token) }, { merge: true });
+    const select = window.NotificationSelect;
+    const key = select && select.tokenFieldKey ? select.tokenFieldKey(token) : null;
+    const patch = { fcmTokens: arrayRemove(token) };
+    if (key) patch.fcmTokenBound = { [key]: deleteField() };
+    await setDoc(doc(db, 'users', uid), patch, { merge: true });
   },
   getFcmToken: async () => {
     try {

@@ -188,6 +188,35 @@
     return tokenOwner;
   }
 
+  const FCM_TOKEN_LIMIT = 20;
+
+  // The rules reject a list longer than 20. Drop the oldest bound tokens
+  // (array order breaks ties) so the new token still fits.
+  function fcmTokensForSave(existingTokens, boundMap, newToken, limit) {
+    const cap = limit || FCM_TOKEN_LIMIT;
+    const existing = (Array.isArray(existingTokens) ? existingTokens : [])
+      .filter((token) => typeof token === 'string' && token);
+    if (!newToken || typeof newToken !== 'string') return existing.slice(0, cap);
+    if (existing.indexOf(newToken) !== -1) {
+      return existing.length > cap ? newestTokens(existing, boundMap, cap) : existing.slice();
+    }
+    const kept = existing.length >= cap ? newestTokens(existing, boundMap, cap - 1) : existing.slice();
+    kept.push(newToken);
+    return kept;
+  }
+
+  function newestTokens(tokens, boundMap, keep) {
+    const user = { fcmTokens: tokens, fcmTokenBound: boundMap || {} };
+    const ranked = tokens.map((token, index) => ({
+      token,
+      index,
+      score: tokenBoundScore(user, token)
+    }));
+    ranked.sort((a, b) => b.score - a.score || a.index - b.index);
+    const chosen = new Set(ranked.slice(0, keep).map((row) => row.token));
+    return tokens.filter((token) => chosen.has(token));
+  }
+
   function tokensForUser(user, tokenOwner) {
     const owned = [];
     const stale = [];
@@ -268,6 +297,8 @@
     favoriteDisplayText,
     assignTokenOwners,
     tokensForUser,
+    fcmTokensForSave,
+    FCM_TOKEN_LIMIT,
     tokenFieldKey,
     tokenBoundScore,
     isBareFavoriteId

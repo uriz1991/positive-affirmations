@@ -37,11 +37,125 @@ function deletionTombstoneActive(status) {
   return status === 'pending' || status === 'done';
 }
 
+// A fresh deletion writes pending before the Stripe cancel. The hourly job
+// skips that doc until this window passes, so it cannot finish the account
+// while this attempt can still delete the tombstone.
+const CANCEL_GRACE_MS = 2 * 60 * 1000;
+
+function deletionProtectsAccount(status) {
+  return status === 'pending' || status === 'done';
+}
+
 // Grant Pro for a real checkout. A missing users/{uid} doc is normal when
-// checkout races ahead of the first sync. Only a deletion tombstone revokes.
+// checkout races ahead of the first sync. A deletion in progress revokes.
 function checkoutDecision(deletionStatus) {
-  if (deletionTombstoneActive(deletionStatus)) return 'revoke-payment';
+  if (deletionProtectsAccount(deletionStatus)) return 'revoke-payment';
   return 'grant';
+}
+
+// A brand-new delete whose Stripe cancel fails must remove the tombstone.
+// A tombstone that was already pending stays, so the hourly job can retry.
+function cancelFailureRollsBackTombstone(existedBefore) {
+  return !existedBefore;
+}
+
+function isStripeCancelFailed(err) {
+  return String((err && err.message) || '').includes('stripe-cancel-failed');
+}
+
+// Roll back only the pending tombstone this call wrote. A pre-existing
+// pending doc, or one another attempt already replaced, stays for retry.
+function tombstoneRollbackMatches(current, attemptId) {
+  return !!(current
+    && current.status === 'pending'
+    && attemptId
+    && current.attemptId === attemptId);
+}
+
+function freshCancelFailureRemovesTombstone(existedBefore, err, current, attemptId) {
+  return cancelFailureRollsBackTombstone(existedBefore)
+    && isStripeCancelFailed(err)
+    && tombstoneRollbackMatches(current, attemptId);
+}
+
+function pendingDeletionDue(doc, nowMs) {
+  if (!doc || doc.status !== 'pending') return false;
+  const started = Number(doc.cancelStartedAt);
+  if (!Number.isFinite(started)) return true;
+  return Number(nowMs) - started >= CANCEL_GRACE_MS;
+}
+
+// A tombstone that already existed means deletion is in progress. The client
+// must stay locked. Only a tombstone this call just created, and then removed,
+// is "nothing was deleted".
+function cancelFailureErrorCode(existedBefore) {
+  return existedBefore ? 'deletion-pending' : 'stripe-cancel-failed';
+}
+
+function cancelFailureResumesSync(code) {
+  return code === 'stripe-cancel-failed';
+}
+
+// removed: tombstone is gone, sync may resume.
+// rollback-failed: the marker was written. The client stays locked until the
+// hourly job deletes that doc. Nothing else was deleted.
+// kept: the doc is still pending, including when the marker write failed.
+// The hourly job will finish the deletion.
+function errorCodeForRollbackOutcome(outcome) {
+  if (outcome === 'rollback-failed') return 'deletion-rollback-failed';
+  if (outcome === 'removed') return 'stripe-cancel-failed';
+  return 'deletion-pending';
+}
+
+// The hourly job may delete this doc only. The account data was not removed.
+function rollbackFailedReleaseMatches(current, attemptId) {
+  return !!(current
+    && current.status === 'rollback-failed'
+    && attemptId
+    && current.attemptId === attemptId);
+}
+
+// One retry, then stop. A second failure is marked rollback-failed. The
+// hourly job deletes that doc instead of finishing the account deletion.
+const ROLLBACK_TRIES = 2;
+
+function rollbackAfterFailure(failedTries) {
+  return Number(failedTries) < ROLLBACK_TRIES ? 'retry' : 'mark-rollback-failed';
+}
+
+// Each call stores the id it generated. A concurrent call must not keep going
+// under the id the previous call already wrote.
+function attemptIdWrittenByCall(_existingAttemptId, generatedAttemptId) {
+  return generatedAttemptId;
+}
+
+const DELETION_STUCK_AFTER = 24;
+const DELETION_ERROR_MAX = 200;
+
+function sanitizedDeletionError(err) {
+  const code = err && typeof err === 'object'
+    ? String(err.code || (err.raw && err.raw.code) || '')
+    : '';
+  const message = err && typeof err === 'object'
+    ? String(err.message || '')
+    : String(err || '');
+  const cleaned = message
+    .replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, '[redacted]')
+    .replace(/\+?\d[\d\s().-]{8,}\d/g, '[redacted]')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const combined = (code ? code + ': ' + cleaned : cleaned).trim();
+  return combined.slice(0, DELETION_ERROR_MAX);
+}
+
+function nextDeletionAttempt(attempts, err) {
+  const prev = Number(attempts);
+  const next = (Number.isFinite(prev) && prev > 0 ? Math.floor(prev) : 0) + 1;
+  return {
+    attempts: next,
+    lastError: sanitizedDeletionError(err),
+    stuck: next >= DELETION_STUCK_AFTER
+  };
 }
 
 // Idempotent resume. Each flag is "this step already succeeded".
@@ -94,6 +208,41 @@ function refundOutcome(err) {
   return 'retry';
 }
 
+// Canceling a subscription that is already gone must not become a webhook 500.
+// Stripe retries that 500 for days.
+function subscriptionCancelIsSettled(err) {
+  if (isMissingStripeCustomer(err)) return true;
+  const code = err && (err.code || (err.raw && err.raw.code));
+  if (code === 'resource_missing') return true;
+  // "canceled" inside an unrelated error must not look settled. Only Stripe's
+  // invalid-request error for a subscription that is already canceled does.
+  if (!err || err.type !== 'StripeInvalidRequestError') return false;
+  const msg = String(err.message || '').toLowerCase();
+  return msg.includes('canceled') || msg.includes('cancelled');
+}
+
+// paid_at is Unix seconds. A charge from before the tombstone is the month
+// the person already used and must not be refunded. A charge after deletedAt
+// is a checkout that landed during deletion and still should be.
+function invoicePaidAfterDeletion(invoice, deletedAtMs) {
+  const deletedMs = Number(deletedAtMs);
+  if (!invoice || !Number.isFinite(deletedMs)) return false;
+  const paidAt = invoice.status_transitions && invoice.status_transitions.paid_at;
+  const paidSec = Number(paidAt);
+  if (!Number.isFinite(paidSec) || paidSec <= 0) return false;
+  return paidSec * 1000 > deletedMs;
+}
+
+// What the deletion webhook should do with a subscription event.
+// Already-ended subscriptions are not cancelled again. The last paid month
+// is not refunded. A checkout paid after the tombstone still is.
+function deletionSubscriptionAction(status, invoice, deletedAtMs) {
+  return {
+    cancel: subscriptionNeedsCancel(status),
+    refund: invoicePaidAfterDeletion(invoice, deletedAtMs)
+  };
+}
+
 // createRefund is called only when money was collected. already-refunded is success.
 async function applyRefundPlan(plan, createRefund) {
   if (!plan || plan.action === 'nothing-to-refund') return 'nothing-to-refund';
@@ -127,11 +276,32 @@ module.exports = {
   isMissingStripeCustomer,
   stripeCallFailure,
   deletionTombstoneActive,
+  deletionProtectsAccount,
+  CANCEL_GRACE_MS,
+  cancelFailureRollsBackTombstone,
+  isStripeCancelFailed,
+  tombstoneRollbackMatches,
+  freshCancelFailureRemovesTombstone,
+  pendingDeletionDue,
+  cancelFailureErrorCode,
+  cancelFailureResumesSync,
+  errorCodeForRollbackOutcome,
+  rollbackFailedReleaseMatches,
+  ROLLBACK_TRIES,
+  rollbackAfterFailure,
+  attemptIdWrittenByCall,
+  DELETION_STUCK_AFTER,
+  DELETION_ERROR_MAX,
+  sanitizedDeletionError,
+  nextDeletionAttempt,
   checkoutDecision,
   nextDeletionStep,
   invoiceIdFromCheckoutSession,
   refundPlanFromInvoice,
   refundOutcome,
   applyRefundPlan,
-  blockedSenderUids
+  blockedSenderUids,
+  subscriptionCancelIsSettled,
+  invoicePaidAfterDeletion,
+  deletionSubscriptionAction
 };

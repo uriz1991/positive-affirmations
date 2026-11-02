@@ -2193,9 +2193,12 @@ function clearAccountLocalData() {
 
 function deleteFailureKey(err) {
   const msg = String((err && err.message) || '');
+  if (msg.indexOf('deletion-rollback-failed') !== -1) return 'deleteAccountRollbackFailed';
+  if (msg.indexOf('deletion-pending') !== -1) return 'deleteAccountDeletionPending';
   if (msg.indexOf('stripe-cancel-failed') !== -1) return 'deleteAccountStripeCancelFailed';
   if (msg.indexOf('stripe-customer-delete-failed') !== -1) return 'deleteAccountIncomplete';
   if (msg.indexOf('auth-delete-failed') !== -1) return 'deleteAccountIncomplete';
+  if (msg.indexOf('referral-identity-cleanup-failed') !== -1) return 'deleteAccountIncomplete';
   if (err && (err.code === 'functions/unavailable' || err.code === 'functions/not-found')) {
     return 'deleteAccountUnavailable';
   }
@@ -2257,8 +2260,9 @@ async function handleDeleteAccountConfirmed() {
     if (dialog) dialog.classList.remove('active');
   } catch (err) {
     const key = deleteFailureKey(err);
-    // Only a failed Stripe cancel happens before any account data is touched.
-    // Later failures leave a pending deletion: stay blocked and try again.
+    // stripe-cancel-failed means this call removed the tombstone it had just
+    // created, so sync can resume. deletion-pending and
+    // deletion-rollback-failed leave a tombstone: keep this device locked.
     if (key === 'deleteAccountStripeCancelFailed') {
       try { sessionStorage.removeItem('account-deleted'); } catch {}
       cloudSyncEnabled = !!currentUser;
@@ -2315,17 +2319,28 @@ async function loadGeneratedContent() {
     }
   }
 
+  // Snapshot the built-in catalog before generated lines are appended.
+  // The public popular list is allowed to repeat those sentences only.
+  const catalogTexts = new Set();
+  (affirmationsData.affirmations || []).forEach((item) => {
+    if (item && typeof item.text === 'string') catalogTexts.add(item.text);
+    if (item && typeof item.textF === 'string') catalogTexts.add(item.textF);
+  });
+
   if (Array.isArray(generated)) {
     affirmationsData.affirmations.push(
       ...generated.filter(g => g?.language === 'he' && g.text && g.category)
     );
   }
 
-  if (Array.isArray(popular) && popular.length) {
+  const safePopular = Array.isArray(popular)
+    ? popular.filter((p) => p && typeof p.text === 'string' && catalogTexts.has(p.text))
+    : [];
+  if (safePopular.length) {
     if (!affirmationsData.categories.popular) {
       affirmationsData.categories.popular = t('categoryPopular');
     }
-    affirmationsData.affirmations.push(...popular.map(p => ({ text: p.text, category: 'popular' })));
+    affirmationsData.affirmations.push(...safePopular.map(p => ({ text: p.text, category: 'popular' })));
   }
 
   renderCategoryChips();
@@ -2470,7 +2485,13 @@ async function handleUpgradeClick() {
     const url = await window.AppAuth.startCheckout(STRIPE_MONTHLY_PRICE_ID);
     logAnalyticsEvent('checkout_started');
     window.location.href = url;
-  } catch {
+  } catch (err) {
+    // past_due / unpaid: checkout is refused. The portal is how they pay,
+    // and it does not require isPro.
+    if (err && err.code === 'functions/failed-precondition') {
+      await handleManagePortal();
+      return;
+    }
     showToast(t('toastCheckoutError'));
   }
 }

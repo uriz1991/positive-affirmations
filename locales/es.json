@@ -190,6 +190,8 @@
   "deleteAccountNeedSignIn": "Inicia sesión antes de eliminar la cuenta",
   "deleteAccountHelp": "Cómo eliminar una cuenta",
   "deleteAccountStripeCancelFailed": "No se pudo cancelar la suscripción de Stripe. No se borró nada. Inténtalo de nuevo o escribe a Uriz1991@gmail.com",
+  "deleteAccountDeletionPending": "La eliminación aún no ha terminado. Se completará automáticamente.",
+  "deleteAccountRollbackFailed": "La eliminación se detuvo. Inténtalo de nuevo en unos minutos.",
   "deleteAccountIncomplete": "El borrado no terminó, pero sigues con la sesión abierta. Pulsa otra vez Eliminar cuenta para continuar.",
   "deleteAccountUnavailable": "El borrado no terminó. Inténtalo de nuevo. Otro toque sigue desde donde se detuvo."
 }
