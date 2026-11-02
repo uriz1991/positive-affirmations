@@ -74,6 +74,10 @@ const {
   stripeCallFailure,
   isMissingStripeCustomer,
   deletionTombstoneActive,
+  deletionProtectsAccount,
+  freshCancelFailureRemovesTombstone,
+  tombstoneRollbackMatches,
+  pendingDeletionDue,
   checkoutDecision,
   invoiceIdFromCheckoutSession,
   refundPlanFromInvoice,
@@ -91,6 +95,8 @@ const {
   portalCustomerId,
   duplicateSubscriptionAction,
   storedSubscriptionDuplicatePlan,
+  invoiceCanBeVoided,
+  invoiceVoidIsSettled,
   customerIdOf,
   shouldApplyBillingEvent,
   billingPatchFromSubscription
@@ -624,7 +630,7 @@ async function applySubscriptionEvent(stripe, event) {
     return;
   }
   const tomb = await deletionTombstoneRecord(uid);
-  if (tomb && deletionTombstoneActive(tomb.status)) {
+  if (tomb && deletionProtectsAccount(tomb.status)) {
     // The month already paid for is not refunded. Only a charge that landed
     // after the tombstone (a checkout during deletion) is.
     await settleDeletedAccountSubscription(stripe, subscription, tomb.deletedAtMs);
@@ -701,6 +707,25 @@ async function cancelSubscriptionIdempotent(stripe, subscription) {
   }
 }
 
+async function voidOpenLatestInvoice(stripe, subscription) {
+  const invoiceId = latestInvoiceId(subscription);
+  if (!invoiceId) return;
+  let invoice;
+  try {
+    invoice = await stripe.invoices.retrieve(invoiceId);
+  } catch (err) {
+    if (invoiceVoidIsSettled(err)) return;
+    throw retryableWebhookError(err && err.message);
+  }
+  if (!invoiceCanBeVoided(invoice && invoice.status)) return;
+  try {
+    await stripe.invoices.voidInvoice(invoiceId);
+  } catch (err) {
+    if (invoiceVoidIsSettled(err)) return;
+    throw retryableWebhookError(err && err.message);
+  }
+}
+
 async function refundLatestInvoice(stripe, subscription, predicate) {
   const invoiceId = latestInvoiceId(subscription);
   if (!invoiceId) return;
@@ -728,11 +753,12 @@ async function refundLatestInvoice(stripe, subscription, predicate) {
 async function resolveDuplicateOrApply(stripe, uid, subscription, event, customerId) {
   const result = await writeSubscriptionSnapshot(uid, subscription, event, customerId);
   if (!result || result.action !== 'cancel-incoming') return;
+  let storedSub = null;
   let stripeStatus = 'canceled';
   if (result.storedSubscriptionId) {
     try {
-      const stored = await stripe.subscriptions.retrieve(result.storedSubscriptionId);
-      stripeStatus = stored && stored.status;
+      storedSub = await stripe.subscriptions.retrieve(result.storedSubscriptionId);
+      stripeStatus = storedSub && storedSub.status;
     } catch (err) {
       if (!subscriptionCancelIsSettled(err)) throw retryableWebhookError(err.message);
     }
@@ -744,10 +770,16 @@ async function resolveDuplicateOrApply(stripe, uid, subscription, event, custome
     return;
   }
   if (plan === 'cancel-stored') {
-    await cancelSubscriptionIdempotent(stripe, {
+    await cancelSubscriptionIdempotent(stripe, storedSub || {
       id: result.storedSubscriptionId,
       status: stripeStatus
     });
+  }
+  // Cancel pauses collection but leaves the invoice open. Void after cancel:
+  // voiding a past_due subscription's open invoice first can mark it active.
+  // A retry sees the stored subscription already canceled and still voids.
+  if (storedSub && (plan === 'cancel-stored' || !subscriptionNeedsCancel(storedSub.status))) {
+    await voidOpenLatestInvoice(stripe, storedSub);
   }
   await writeSubscriptionSnapshot(uid, subscription, event, customerId, { force: true });
 }
@@ -772,10 +804,10 @@ exports.redeemReferral = onCall({ secrets: [referralHashKey] }, async (request) 
   if (!validReferrerUid(referrerUid, uid)) {
     throw new HttpsError('invalid-argument', 'Invalid referral link.');
   }
-  if (deletionTombstoneActive(await deletionTombstoneStatus(uid))) {
+  if (deletionProtectsAccount(await deletionTombstoneStatus(uid))) {
     throw new HttpsError('failed-precondition', 'Invalid referral link.');
   }
-  if (deletionTombstoneActive(await deletionTombstoneStatus(referrerUid))) {
+  if (deletionProtectsAccount(await deletionTombstoneStatus(referrerUid))) {
     throw new HttpsError('not-found', 'Referrer not found.');
   }
 
@@ -1261,11 +1293,18 @@ async function clearReferralIdentityUsers(uid) {
       firebaseUid: FieldValue.delete()
     }, { merge: true });
   }
+  // referrals/{invitedUid} still names this account as the inviter. The
+  // invited account's own doc is deleted when that account is deleted.
+  const invited = await db.collection('referrals').where('referrerUid', '==', uid).get();
+  for (const docSnap of invited.docs) {
+    await docSnap.ref.set({ referrerUid: FieldValue.delete() }, { merge: true });
+  }
 }
 
 // Idempotent. Auth is deleted last, so until that succeeds the person is
 // still signed in and can call this again. A scheduled job runs the same
-// steps for tombstones left at status pending.
+// steps for pending tombstones, except one whose Stripe cancel started
+// inside the grace window.
 //
 // Another device can still write users/{uid} for up to an hour because an
 // ID token stays valid. dropRewrittenDeletedUser removes those writes, and
@@ -1286,15 +1325,50 @@ async function finishAccountDeletion(uid, customerHint) {
 
   const stripe = stripeClient();
   const customerIds = await customerIdsForUser(stripe, uid, customerId);
-  // Write deletedAt before cancelling. A payment that lands in that window
-  // is after the tombstone, so the webhook refunds it. An earlier invoice is not.
-  await tombRef.set({
-    deletedAt: tomb.deletedAt || FieldValue.serverTimestamp(),
-    status: 'pending',
-    customerId: customerIds[0] || customerId || null
-  }, { merge: true });
-  for (const id of customerIds) {
-    await cancelCustomerSubscriptions(stripe, id, uid);
+  const existedBefore = tombSnap.exists;
+  let attemptId = tomb.attemptId || null;
+  if (!existedBefore) {
+    // pending, but younger than the grace window, so the hourly job skips it.
+    // A failed cancel deletes this doc again, so the account stays.
+    attemptId = Date.now().toString(36) + Math.random().toString(36).slice(2);
+    const startedAt = Date.now();
+    await tombRef.set({
+      deletedAt: new Date(startedAt),
+      status: 'pending',
+      attemptId,
+      cancelStartedAt: startedAt,
+      customerId: customerIds[0] || customerId || null
+    });
+  } else {
+    // Keep the refund cutoff and the customer id. Do not refresh
+    // cancelStartedAt, or the hourly retry would wait out the grace window.
+    const patch = {
+      customerId: customerIds[0] || customerId || tomb.customerId || null
+    };
+    if (!tomb.deletedAt) patch.deletedAt = FieldValue.serverTimestamp();
+    if (tomb.status !== 'pending') patch.status = 'pending';
+    await tombRef.set(patch, { merge: true });
+  }
+  try {
+    for (const id of customerIds) {
+      await cancelCustomerSubscriptions(stripe, id, uid);
+    }
+  } catch (err) {
+    if (freshCancelFailureRemovesTombstone(existedBefore, err, { status: 'pending', attemptId }, attemptId)) {
+      try {
+        await rollBackFreshTombstone(tombRef, attemptId);
+      } catch (rollbackErr) {
+        logger.error('Could not remove the deletion tombstone after Stripe cancel failed', {
+          uid,
+          message: rollbackErr && rollbackErr.message
+        });
+      }
+    }
+    throw err;
+  }
+  if (!existedBefore) {
+    // Cancel succeeded. Later steps may fail and must be retried immediately.
+    await tombRef.set({ cancelStartedAt: FieldValue.delete() }, { merge: true });
   }
 
   await db.doc('users/' + uid).delete();
@@ -1344,12 +1418,26 @@ exports.deleteAccount = onCall({ secrets: [stripeSecretKey, referralHashKey] }, 
   return finishAccountDeletion(uid, subSnap.data()?.stripeCustomerId || null);
 });
 
+async function rollBackFreshTombstone(tombRef, attemptId) {
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(tombRef);
+    if (!snap.exists) return;
+    if (!tombstoneRollbackMatches(snap.data(), attemptId)) return;
+    tx.delete(tombRef);
+  });
+}
+
 exports.finishPendingAccountDeletions = onSchedule({
   schedule: 'every 60 minutes',
   secrets: [stripeSecretKey, referralHashKey]
 }, async () => {
-  const snap = await db.collection('deletedAccounts').where('status', '==', 'pending').get();
-  for (const tomb of snap.docs) {
+  const now = Date.now();
+  const pending = await db.collection('deletedAccounts').where('status', '==', 'pending').get();
+  const due = pending.docs.filter((tomb) => pendingDeletionDue({
+    status: tomb.get('status'),
+    cancelStartedAt: tomb.get('cancelStartedAt')
+  }, now));
+  for (const tomb of due) {
     try {
       await finishAccountDeletion(tomb.id, tomb.data()?.customerId || null);
     } catch (err) {

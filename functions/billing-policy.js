@@ -44,6 +44,19 @@ function storedSubscriptionDuplicatePlan(stripeStatus) {
   return 'replace';
 }
 
+// Cancel sets auto_advance false but leaves a finalized invoice open.
+// Only those can be voided. Draft and paid invoices are left alone.
+function invoiceCanBeVoided(status) {
+  return status === 'open' || status === 'uncollectible';
+}
+
+function invoiceVoidIsSettled(err) {
+  if (!err) return false;
+  const code = err.code || (err.raw && err.raw.code);
+  if (code === 'resource_missing') return true;
+  return err.type === 'StripeInvalidRequestError';
+}
+
 function duplicateSubscriptionAction(existing, incoming) {
   if (!existing || !incoming || !incoming.id || !existing.stripeSubscriptionId) return 'apply';
   if (existing.stripeSubscriptionId === incoming.id) return 'apply';
@@ -162,6 +175,8 @@ module.exports = {
   trialEligible,
   duplicateSubscriptionAction,
   storedSubscriptionDuplicatePlan,
+  invoiceCanBeVoided,
+  invoiceVoidIsSettled,
   checkoutBlocked,
   checkoutExpiresAtSeconds,
   openPendingCheckout,

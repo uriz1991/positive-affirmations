@@ -9,6 +9,8 @@ const {
   trialEligible,
   duplicateSubscriptionAction,
   storedSubscriptionDuplicatePlan,
+  invoiceCanBeVoided,
+  invoiceVoidIsSettled,
   checkoutBlocked,
   CHECKOUT_SESSION_TTL_MS,
   checkoutExpiresAtSeconds,
@@ -101,6 +103,16 @@ check('a second live subscription is cancelled instead of replacing the first', 
   assert.strictEqual(storedSubscriptionDuplicatePlan('past_due'), 'cancel-stored');
   assert.strictEqual(storedSubscriptionDuplicatePlan('unpaid'), 'cancel-stored');
   assert.strictEqual(storedSubscriptionDuplicatePlan('canceled'), 'replace');
+  assert.strictEqual(invoiceCanBeVoided('open'), true);
+  assert.strictEqual(invoiceCanBeVoided('uncollectible'), true);
+  assert.strictEqual(invoiceCanBeVoided('paid'), false);
+  assert.strictEqual(invoiceCanBeVoided('draft'), false);
+  assert.strictEqual(invoiceVoidIsSettled({ code: 'resource_missing' }), true);
+  assert.strictEqual(invoiceVoidIsSettled({
+    type: 'StripeInvalidRequestError',
+    message: 'You can only void invoices with status open or uncollectible.'
+  }), true);
+  assert.strictEqual(invoiceVoidIsSettled({ type: 'StripeConnectionError', message: 'network' }), false);
 });
 
 check('gemini credit is refunded only for transport, 5xx, and quota failures', () => {

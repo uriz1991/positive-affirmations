@@ -37,11 +37,52 @@ function deletionTombstoneActive(status) {
   return status === 'pending' || status === 'done';
 }
 
+// A fresh deletion writes pending before the Stripe cancel. The hourly job
+// skips that doc until this window passes, so it cannot finish the account
+// while this attempt can still delete the tombstone.
+const CANCEL_GRACE_MS = 2 * 60 * 1000;
+
+function deletionProtectsAccount(status) {
+  return status === 'pending' || status === 'done';
+}
+
 // Grant Pro for a real checkout. A missing users/{uid} doc is normal when
-// checkout races ahead of the first sync. Only a deletion tombstone revokes.
+// checkout races ahead of the first sync. A deletion in progress revokes.
 function checkoutDecision(deletionStatus) {
-  if (deletionTombstoneActive(deletionStatus)) return 'revoke-payment';
+  if (deletionProtectsAccount(deletionStatus)) return 'revoke-payment';
   return 'grant';
+}
+
+// A brand-new delete whose Stripe cancel fails must remove the tombstone.
+// A tombstone that was already pending stays, so the hourly job can retry.
+function cancelFailureRollsBackTombstone(existedBefore) {
+  return !existedBefore;
+}
+
+function isStripeCancelFailed(err) {
+  return String((err && err.message) || '').includes('stripe-cancel-failed');
+}
+
+// Roll back only the pending tombstone this call wrote. A pre-existing
+// pending doc, or one another attempt already replaced, stays for retry.
+function tombstoneRollbackMatches(current, attemptId) {
+  return !!(current
+    && current.status === 'pending'
+    && attemptId
+    && current.attemptId === attemptId);
+}
+
+function freshCancelFailureRemovesTombstone(existedBefore, err, current, attemptId) {
+  return cancelFailureRollsBackTombstone(existedBefore)
+    && isStripeCancelFailed(err)
+    && tombstoneRollbackMatches(current, attemptId);
+}
+
+function pendingDeletionDue(doc, nowMs) {
+  if (!doc || doc.status !== 'pending') return false;
+  const started = Number(doc.cancelStartedAt);
+  if (!Number.isFinite(started)) return true;
+  return Number(nowMs) - started >= CANCEL_GRACE_MS;
 }
 
 // Idempotent resume. Each flag is "this step already succeeded".
@@ -162,6 +203,13 @@ module.exports = {
   isMissingStripeCustomer,
   stripeCallFailure,
   deletionTombstoneActive,
+  deletionProtectsAccount,
+  CANCEL_GRACE_MS,
+  cancelFailureRollsBackTombstone,
+  isStripeCancelFailed,
+  tombstoneRollbackMatches,
+  freshCancelFailureRemovesTombstone,
+  pendingDeletionDue,
   checkoutDecision,
   nextDeletionStep,
   invoiceIdFromCheckoutSession,

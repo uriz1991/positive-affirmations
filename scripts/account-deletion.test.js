@@ -15,7 +15,13 @@ const {
   blockedSenderUids,
   subscriptionCancelIsSettled,
   invoicePaidAfterDeletion,
-  deletionSubscriptionAction
+  deletionSubscriptionAction,
+  cancelFailureRollsBackTombstone,
+  isStripeCancelFailed,
+  tombstoneRollbackMatches,
+  freshCancelFailureRemovesTombstone,
+  pendingDeletionDue,
+  CANCEL_GRACE_MS
 } = require('../functions/account-deletion');
 
 let failures = 0;
@@ -227,6 +233,38 @@ check('deleting an account does not refund the month already paid', () => {
     message: 'The payment was canceled.'
   }), false);
   assert.strictEqual(subscriptionCancelIsSettled({ code: 'rate_limit', message: 'slow down' }), false);
+});
+
+check('a failed first Stripe cancel leaves no tombstone', () => {
+  const attemptId = 'attempt-1';
+  const written = { status: 'pending', attemptId, cancelStartedAt: 1 };
+  const cancelFailed = { message: 'stripe-cancel-failed' };
+  assert.strictEqual(freshCancelFailureRemovesTombstone(false, cancelFailed, written, attemptId), true);
+  assert.strictEqual(cancelFailureRollsBackTombstone(false), true);
+  assert.strictEqual(isStripeCancelFailed(cancelFailed), true);
+  assert.strictEqual(tombstoneRollbackMatches(written, attemptId), true);
+  assert.strictEqual(freshCancelFailureRemovesTombstone(true, cancelFailed, written, attemptId), false);
+  assert.strictEqual(freshCancelFailureRemovesTombstone(false, { message: 'auth-delete-failed' }, written, attemptId), false);
+  assert.strictEqual(freshCancelFailureRemovesTombstone(false, cancelFailed, {
+    status: 'done',
+    attemptId
+  }, attemptId), false);
+  assert.strictEqual(tombstoneRollbackMatches({
+    status: 'pending',
+    attemptId: 'attempt-2'
+  }, attemptId), false);
+  assert.strictEqual(tombstoneRollbackMatches(null, attemptId), false);
+  const now = Date.parse('2026-11-02T12:00:00Z');
+  assert.strictEqual(pendingDeletionDue({ status: 'pending' }, now), true);
+  assert.strictEqual(pendingDeletionDue({
+    status: 'pending',
+    cancelStartedAt: now - 10 * 1000
+  }, now), false);
+  assert.strictEqual(pendingDeletionDue({
+    status: 'pending',
+    cancelStartedAt: now - CANCEL_GRACE_MS
+  }, now), true);
+  assert.strictEqual(pendingDeletionDue({ status: 'done', cancelStartedAt: now }, now), false);
 });
 
 check('a failed deletedAccounts read blocks every candidate send', () => {

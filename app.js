@@ -2258,8 +2258,9 @@ async function handleDeleteAccountConfirmed() {
     if (dialog) dialog.classList.remove('active');
   } catch (err) {
     const key = deleteFailureKey(err);
-    // Only a failed Stripe cancel happens before any account data is touched.
-    // Later failures leave a pending deletion: stay blocked and try again.
+    // stripe-cancel-failed rolls back a tombstone this call just created, so
+    // sync can resume. A tombstone that was already pending stays: keep this
+    // device blocked and try the deletion again.
     if (key === 'deleteAccountStripeCancelFailed') {
       try { sessionStorage.removeItem('account-deleted'); } catch {}
       cloudSyncEnabled = !!currentUser;
