@@ -8,19 +8,16 @@ const {
   isMissingStripeCustomer,
   stripeCallFailure,
   checkoutDecision,
-  nextDeletionStep
+  nextDeletionStep,
+  invoiceIdFromCheckoutSession,
+  refundPlanFromInvoice,
+  applyRefundPlan
 } = require('../functions/account-deletion');
 
 let failures = 0;
+const tests = [];
 function check(name, fn) {
-  try {
-    fn();
-    console.log('ok  ' + name);
-  } catch (err) {
-    failures++;
-    console.log('FAIL ' + name);
-    console.log('    ' + err.message);
-  }
+  tests.push({ name, fn });
 }
 
 check('active, trialing, and past_due subscriptions must be cancelled', () => {
@@ -130,8 +127,74 @@ check('walking every step from empty reaches finished in the documented order', 
   assert.deepStrictEqual(seen, DELETION_STEP_ORDER.concat('finished'));
 });
 
-if (failures) {
-  console.log(failures + ' failed');
-  process.exit(1);
-}
-console.log('account-deletion checks passed');
+check('a subscription checkout refunds the invoice charge, not session.payment_intent', async () => {
+  const session = {
+    mode: 'subscription',
+    payment_intent: null,
+    invoice: 'in_paid'
+  };
+  assert.strictEqual(invoiceIdFromCheckoutSession(session), 'in_paid');
+  const plan = refundPlanFromInvoice({
+    id: 'in_paid',
+    amount_paid: 1490,
+    payment_intent: 'pi_paid'
+  });
+  assert.strictEqual(plan.action, 'refund');
+  assert.strictEqual(plan.idempotencyKey, 'refund-in_paid');
+  assert.strictEqual(plan.paymentIntentId, 'pi_paid');
+  const calls = [];
+  const outcome = await applyRefundPlan(plan, async (p) => {
+    calls.push(p);
+  });
+  assert.strictEqual(outcome, 'refunded');
+  assert.strictEqual(calls.length, 1);
+  assert.strictEqual(calls[0].idempotencyKey, 'refund-in_paid');
+});
+
+check('a trial invoice with amount_paid 0 is not refunded', async () => {
+  const session = { mode: 'subscription', payment_intent: null, invoice: 'in_trial' };
+  assert.strictEqual(invoiceIdFromCheckoutSession(session), 'in_trial');
+  const plan = refundPlanFromInvoice({
+    id: 'in_trial',
+    amount_paid: 0,
+    payment_intent: null
+  });
+  assert.strictEqual(plan.action, 'nothing-to-refund');
+  let called = false;
+  const outcome = await applyRefundPlan(plan, async () => { called = true; });
+  assert.strictEqual(outcome, 'nothing-to-refund');
+  assert.strictEqual(called, false);
+});
+
+check('charge_already_refunded is success and is not retried', async () => {
+  const plan = refundPlanFromInvoice({
+    id: 'in_again',
+    amount_paid: 1490,
+    charge: 'ch_1'
+  });
+  assert.strictEqual(plan.idempotencyKey, 'refund-in_again');
+  const outcome = await applyRefundPlan(plan, async () => {
+    const err = new Error('already refunded');
+    err.code = 'charge_already_refunded';
+    throw err;
+  });
+  assert.strictEqual(outcome, 'already-refunded');
+});
+
+(async () => {
+  for (const test of tests) {
+    try {
+      await test.fn();
+      console.log('ok  ' + test.name);
+    } catch (err) {
+      failures++;
+      console.log('FAIL ' + test.name);
+      console.log('    ' + (err && err.message));
+    }
+  }
+  if (failures) {
+    console.log(failures + ' failed');
+    process.exit(1);
+  }
+  console.log('account-deletion checks passed');
+})();

@@ -39,7 +39,14 @@ function describeGeminiError(err) {
   };
 }
 
-setGlobalOptions({ region: 'me-west1', maxInstances: 3 });
+// Callable, HTTP, and scheduled functions stay in FUNCTION_REGION.
+// A Firestore document trigger must run in the same region as the Firestore
+// database. If that database is not in me-west1, change only
+// FIRESTORE_TRIGGER_REGION before the first deploy of dropRewrittenDeletedUser.
+const FUNCTION_REGION = 'me-west1';
+const FIRESTORE_TRIGGER_REGION = 'me-west1';
+
+setGlobalOptions({ region: FUNCTION_REGION, maxInstances: 3 });
 
 initializeApp();
 const db = getFirestore();
@@ -53,7 +60,10 @@ const {
   idsToCancel,
   stripeCallFailure,
   deletionTombstoneActive,
-  checkoutDecision
+  checkoutDecision,
+  invoiceIdFromCheckoutSession,
+  refundPlanFromInvoice,
+  applyRefundPlan
 } = require('./account-deletion');
 const NOTIFICATION_POOLS = {
   he: require('./notification-pool.json').items,
@@ -106,7 +116,7 @@ function isDueNow(currentMinutes, targetTime) {
 
 exports.sendScheduledReminders = onSchedule('every 5 minutes', async () => {
   const usersSnap = await db.collection('users').get();
-  const deletedIds = await deletedAccountIdSet();
+  const deletedIds = await uidsBlockedFromSending(usersSnap.docs.map((doc) => doc.id));
   const tokenOwner = assignTokenOwners(usersSnap.docs.map(userTokenRecord));
 
   await Promise.all(usersSnap.docs.map(async (userDoc) => {
@@ -555,7 +565,7 @@ exports.sendWeeklyCoachInsight = onSchedule({
   secrets: [geminiApiKey]
 }, async () => {
   const usersSnap = await db.collection('users').get();
-  const deletedIds = await deletedAccountIdSet();
+  const deletedIds = await uidsBlockedFromSending(usersSnap.docs.map((doc) => doc.id));
   const tokenOwner = assignTokenOwners(usersSnap.docs.map(userTokenRecord));
   const genAI = new GoogleGenerativeAI(secretValue(geminiApiKey));
   const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
@@ -648,13 +658,20 @@ exports.sendWeeklyCoachInsight = onSchedule({
   }));
 });
 
-async function deletedAccountIdSet() {
+// Look up only the uids this run might message. A failed read skips those
+// sends. An empty set would treat a tombstone outage as "not deleted".
+async function uidsBlockedFromSending(uids) {
+  if (!uids.length) return new Set();
   try {
-    const snap = await db.collection('deletedAccounts').get();
-    return new Set(snap.docs.map((d) => d.id));
+    const snaps = await db.getAll(...uids.map((uid) => db.doc('deletedAccounts/' + uid)));
+    const blocked = new Set();
+    snaps.forEach((snap) => {
+      if (snap.exists) blocked.add(snap.id);
+    });
+    return blocked;
   } catch (err) {
-    logger.error('Could not load deleted accounts', { message: err.message });
-    return new Set();
+    logger.error('Could not read deletedAccounts; skipping sends', { message: err.message, count: uids.length });
+    return new Set(uids);
   }
 }
 
@@ -683,18 +700,24 @@ async function revokeCheckoutForDeletedAccount(stripe, session) {
       if (stripeCallFailure(err) === 'stop') throw retryableWebhookError(err.message);
     }
   }
-  const paymentIntentId = typeof session.payment_intent === 'string'
-    ? session.payment_intent
-    : session.payment_intent && session.payment_intent.id;
-  if (!paymentIntentId) return;
+  // mode=subscription leaves session.payment_intent null. The money is on the invoice.
+  const invoiceId = invoiceIdFromCheckoutSession(session);
+  if (!invoiceId) throw retryableWebhookError('checkout session has no invoice');
+  let invoice;
   try {
-    const intent = await stripe.paymentIntents.retrieve(paymentIntentId);
-    if (!intent || intent.status !== 'succeeded' || !(intent.amount_received > 0)) return;
-    await stripe.refunds.create({ payment_intent: paymentIntentId });
+    invoice = await stripe.invoices.retrieve(invoiceId);
   } catch (err) {
-    if (err && err.code === 'charge_already_refunded') return;
-    if (stripeCallFailure(err) === 'continue') return;
     throw retryableWebhookError(err && err.message);
+  }
+  const plan = refundPlanFromInvoice(invoice);
+  const outcome = await applyRefundPlan(plan, (refundPlan) => {
+    const body = refundPlan.paymentIntentId
+      ? { payment_intent: refundPlan.paymentIntentId }
+      : { charge: refundPlan.chargeId };
+    return stripe.refunds.create(body, { idempotencyKey: refundPlan.idempotencyKey });
+  });
+  if (outcome === 'retry') {
+    throw retryableWebhookError('refund did not complete for ' + invoiceId);
   }
 }
 
@@ -805,7 +828,10 @@ exports.finishPendingAccountDeletions = onSchedule({
 });
 
 // A still-valid ID token can recreate users/{uid} after deletion. Drop it.
-exports.dropRewrittenDeletedUser = onDocumentWritten('users/{uid}', async (event) => {
+exports.dropRewrittenDeletedUser = onDocumentWritten({
+  document: 'users/{uid}',
+  region: FIRESTORE_TRIGGER_REGION
+}, async (event) => {
   if (!event.data || !event.data.after.exists) return;
   const uid = event.params.uid;
   const status = await deletionTombstoneStatus(uid);

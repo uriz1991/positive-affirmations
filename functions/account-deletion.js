@@ -56,6 +56,58 @@ function nextDeletionStep(state) {
   return 'finished';
 }
 
+// Subscription checkout leaves session.payment_intent null. The charge is on
+// the invoice. A trial invoice has amount_paid 0: cancel only, do not refund.
+function invoiceIdFromCheckoutSession(session) {
+  if (!session || session.invoice == null || session.invoice === '') return null;
+  if (typeof session.invoice === 'string') return session.invoice;
+  return session.invoice.id || null;
+}
+
+function refundPlanFromInvoice(invoice) {
+  if (!invoice || !invoice.id) return { action: 'missing-invoice' };
+  const amountPaid = Number(invoice.amount_paid || 0);
+  if (!(amountPaid > 0)) {
+    return { action: 'nothing-to-refund', invoiceId: invoice.id, amountPaid: 0 };
+  }
+  const paymentIntentId = typeof invoice.payment_intent === 'string'
+    ? invoice.payment_intent
+    : invoice.payment_intent && invoice.payment_intent.id;
+  const chargeId = typeof invoice.charge === 'string'
+    ? invoice.charge
+    : invoice.charge && invoice.charge.id;
+  if (!paymentIntentId && !chargeId) {
+    return { action: 'retry', invoiceId: invoice.id, amountPaid };
+  }
+  return {
+    action: 'refund',
+    invoiceId: invoice.id,
+    amountPaid,
+    paymentIntentId: paymentIntentId || null,
+    chargeId: chargeId || null,
+    idempotencyKey: 'refund-' + invoice.id
+  };
+}
+
+function refundOutcome(err) {
+  if (err && err.code === 'charge_already_refunded') return 'success';
+  return 'retry';
+}
+
+// createRefund is called only when money was collected. already-refunded is success.
+async function applyRefundPlan(plan, createRefund) {
+  if (!plan || plan.action === 'nothing-to-refund') return 'nothing-to-refund';
+  if (!plan || plan.action === 'missing-invoice' || plan.action === 'retry') return 'retry';
+  if (plan.action !== 'refund') return 'retry';
+  try {
+    await createRefund(plan);
+    return 'refunded';
+  } catch (err) {
+    if (refundOutcome(err) === 'success') return 'already-refunded';
+    return 'retry';
+  }
+}
+
 module.exports = {
   DELETION_STEP_ORDER,
   subscriptionNeedsCancel,
@@ -64,5 +116,9 @@ module.exports = {
   stripeCallFailure,
   deletionTombstoneActive,
   checkoutDecision,
-  nextDeletionStep
+  nextDeletionStep,
+  invoiceIdFromCheckoutSession,
+  refundPlanFromInvoice,
+  refundOutcome,
+  applyRefundPlan
 };

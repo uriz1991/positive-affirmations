@@ -2442,9 +2442,6 @@ function removeAiCoachFromPool() {
 
 async function handleUpgradeClick() {
   if (isPlayBuild()) return;
-  // Same fresh-sign-in rule as the account button. The deletion block must
-  // not stay up while this signs in and starts checkout.
-  clearAccountDeletedForFreshSignIn();
   // Signing in used to be a hard stop here (a toast, then the user has to go
   // find the account tab themselves) — that's exactly the kind of extra step
   // that loses people right before Checkout, so do it inline instead.
@@ -2453,6 +2450,9 @@ async function handleUpgradeClick() {
       showToast(t('toastSignInFirst'));
       return;
     }
+    // Only a real sign-in clears the deletion block. An already-signed-in
+    // upgrade must not drop it.
+    clearAccountDeletedForFreshSignIn();
     try {
       const result = await window.AppAuth.signIn();
       currentUser = result.user;

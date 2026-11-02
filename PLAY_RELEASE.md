@@ -62,6 +62,27 @@ Chrome בודק את הקובץ רק בשורש הדומיין:
 7. אחרי שהקונסול מאפשר, להגיש ל-production. זה צעד נפרד, לא חלק מהבראנץ' הזה.
 8. אחרי שיש App signing certificate, לפרסם את `assetlinks.json` בשורש הדומיין ולוודא שהסרגל נעלם.
 
+## לפני מיזוג: הטריגר הראשון של Eventarc
+
+`dropRewrittenDeletedUser` ב-`functions/index.js` הוא טריגר Firestore הראשון בפרויקט (`onDocumentWritten`). שאר הפונקציות נשארות ב-`FUNCTION_REGION` (`me-west1`). הטריגר עצמו רץ ב-`FIRESTORE_TRIGGER_REGION`, שגם הוא `me-west1` עד שתשנה אותו. טריגר על מסמך חייב לשבת באותו אזור כמו מסד הנתונים של Firestore. אם המסד לא ב-`me-west1`, משנים רק את `FIRESTORE_TRIGGER_REGION` לפני הדיפלוי הראשון של הפונקציה הזו.
+
+לפני המיזוג, בקונסול או עם `gcloud firestore databases list --project positive-affirmations-9f382`, בודקים את מיקום המסד ומתאימים את הקבוע.
+
+על חשבון השירות שמחזיק את המפתח `GCP_SA_KEY` (זה ש-GitHub Actions משתמש בו לדיפלוי) צריך את התפקידים האלה:
+
+- `roles/cloudfunctions.admin`
+- `roles/run.admin`
+- `roles/eventarc.admin`
+- `roles/iam.serviceAccountUser`
+- `roles/artifactregistry.admin`
+- `roles/cloudbuild.builds.editor`
+
+וצריך שה-APIים האלה יהיו דלוקים: `eventarc.googleapis.com`, `run.googleapis.com`, `pubsub.googleapis.com`, `cloudfunctions.googleapis.com`, `cloudbuild.googleapis.com`, `artifactregistry.googleapis.com`.
+
+לסוכן של Eventarc, `service-PROJECT_NUMBER@gcp-sa-eventarc.iam.gserviceaccount.com`, צריך `roles/eventarc.serviceAgent`. גוגל מוסיפים אותו לבד אחרי שמפעילים את ה-API. לחשבון הריצה של הפונקציה (ברירת המחדל `PROJECT_NUMBER-compute@developer.gserviceaccount.com`) צריך `roles/eventarc.eventReceiver`.
+
+הדיפלוי הראשון של הטריגר הזה נופל לפעמים פעם אחת, עם שגיאה על סוכן Eventarc שעדיין לא מוכן. מחכים כמה דקות ומריצים את דיפלוי הפונקציות שוב. זו לא תקלה בקוד.
+
 ## 6. מה המשתמש רואה בחנות
 
 מוסתר: שדרוג Stripe, «נהל מנוי», וקישור התרומה (Buy Me a Coffee לא מופיע במסך היום; אם יחזור, גם הוא מוסתר).
