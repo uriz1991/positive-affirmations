@@ -370,7 +370,6 @@ exports.createCheckoutSession = onCall({ secrets: [stripeSecretKey] }, async (re
   }
 
   const stripe = stripeClient();
-  const expiresAt = checkoutExpiresAtSeconds(now);
   const subscriptionData = { metadata: { uid, priceId } };
   if (reserved.trial) subscriptionData.trial_period_days = 7;
   const params = {
@@ -380,10 +379,13 @@ exports.createCheckoutSession = onCall({ secrets: [stripeSecretKey] }, async (re
     metadata: { uid, priceId },
     subscription_data: subscriptionData,
     success_url: `${APP_URL}?upgraded=1`,
-    cancel_url: APP_URL,
-    expires_at: expiresAt
+    cancel_url: APP_URL
   };
   if (reserved.customerId) params.customer = reserved.customerId;
+  // Stamp this immediately before the request. An earlier timestamp, once
+  // floored, arrives under Stripe's 30-minute minimum and the call is rejected.
+  const expiresAt = checkoutExpiresAtSeconds(Date.now());
+  params.expires_at = expiresAt;
 
   let session;
   try {

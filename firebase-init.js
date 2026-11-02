@@ -14,7 +14,9 @@ import {
   doc,
   getDoc,
   setDoc,
+  runTransaction,
   arrayRemove,
+  deleteField,
   collection,
   query,
   orderBy,
@@ -61,6 +63,19 @@ const deleteAccountFn = httpsCallable(functions, 'deleteAccount');
 // Fields saveUserData may write. fcmTokens and fcmTokenBound are written
 // only by saveFcmToken / removeFcmToken. Server-owned fields (isPro,
 // referredBy, referralCount, aiGenCount, personalPlan, …) are not here.
+function fcmBoundPatch(existing, nextTokens, newKey, select) {
+  const patch = {};
+  if (newKey) patch[newKey] = Date.now();
+  if (select && select.tokenFieldKey) {
+    existing.forEach((old) => {
+      if (nextTokens.indexOf(old) !== -1) return;
+      const oldKey = select.tokenFieldKey(old);
+      if (oldKey && oldKey !== newKey) patch[oldKey] = deleteField();
+    });
+  }
+  return Object.keys(patch).length ? patch : null;
+}
+
 function fallbackFcmTokens(existing, token, limit) {
   const list = (Array.isArray(existing) ? existing : []).filter((item) => typeof item === 'string' && item);
   if (!token || list.indexOf(token) !== -1) return list.slice(0, limit);
@@ -111,23 +126,28 @@ window.AppAuth = {
   },
   saveFcmToken: async (uid, token) => {
     const ref = doc(db, 'users', uid);
-    const snap = await getDoc(ref);
-    const data = snap.exists() ? snap.data() : {};
-    const existing = Array.isArray(data.fcmTokens) ? data.fcmTokens : [];
-    const bound = data.fcmTokenBound && typeof data.fcmTokenBound === 'object' ? data.fcmTokenBound : null;
-    const select = window.NotificationSelect;
-    const nextTokens = select && select.fcmTokensForSave
-      ? select.fcmTokensForSave(existing, bound, token, 20)
-      : fallbackFcmTokens(existing, token, 20);
-    const key = select && select.tokenFieldKey ? select.tokenFieldKey(token) : null;
-    const patch = { fcmTokens: nextTokens };
-    // Only this device's token gets a new time. Other tokens on the account
-    // keep the time they were saved with.
-    if (key) patch.fcmTokenBound = { [key]: Date.now() };
-    await setDoc(ref, patch, { merge: true });
+    await runTransaction(db, async (tx) => {
+      const snap = await tx.get(ref);
+      const data = snap.exists() ? snap.data() : {};
+      const existing = Array.isArray(data.fcmTokens) ? data.fcmTokens : [];
+      const bound = data.fcmTokenBound && typeof data.fcmTokenBound === 'object' ? data.fcmTokenBound : null;
+      const select = window.NotificationSelect;
+      const nextTokens = select && select.fcmTokensForSave
+        ? select.fcmTokensForSave(existing, bound, token, 20)
+        : fallbackFcmTokens(existing, token, 20);
+      const key = select && select.tokenFieldKey ? select.tokenFieldKey(token) : null;
+      const patch = { fcmTokens: nextTokens };
+      const boundPatch = fcmBoundPatch(existing, nextTokens, key, select);
+      if (boundPatch) patch.fcmTokenBound = boundPatch;
+      tx.set(ref, patch, { merge: true });
+    });
   },
   removeFcmToken: async (uid, token) => {
-    await setDoc(doc(db, 'users', uid), { fcmTokens: arrayRemove(token) }, { merge: true });
+    const select = window.NotificationSelect;
+    const key = select && select.tokenFieldKey ? select.tokenFieldKey(token) : null;
+    const patch = { fcmTokens: arrayRemove(token) };
+    if (key) patch.fcmTokenBound = { [key]: deleteField() };
+    await setDoc(doc(db, 'users', uid), patch, { merge: true });
   },
   getFcmToken: async () => {
     try {

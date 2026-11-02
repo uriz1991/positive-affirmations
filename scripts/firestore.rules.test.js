@@ -16,7 +16,8 @@ const {
   updateDoc,
   deleteDoc,
   arrayUnion,
-  arrayRemove
+  arrayRemove,
+  deleteField
 } = require('firebase/firestore');
 
 const PROJECT_ID = 'demo-positive-affirmations';
@@ -100,7 +101,8 @@ async function main() {
         fcmTokenBound: { tabc: Date.now() }
       }, { merge: true }));
       await assertSucceeds(setDoc(doc(alice, 'users/alice'), {
-        fcmTokens: arrayRemove('token-a')
+        fcmTokens: arrayRemove('token-a'),
+        fcmTokenBound: { tabc: deleteField() }
       }, { merge: true }));
     });
 

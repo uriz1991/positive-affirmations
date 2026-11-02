@@ -4,8 +4,9 @@
 const ALLOWED_PRICE_IDS = ['price_1UAlkS5TpYQiqdPxShalBZVP'];
 
 const PRO_STATUSES = ['active', 'trialing'];
-// Stripe requires expires_at to be at least 30 minutes out and at most 24 hours.
-const CHECKOUT_SESSION_TTL_MS = 30 * 60 * 1000;
+// Stripe rejects expires_at under 30 minutes from the moment it receives the
+// request. 31 minutes, rounded up, still clears that floor after the call.
+const CHECKOUT_SESSION_TTL_MS = 31 * 60 * 1000;
 // Held only while this process is calling Stripe. A crash must not block
 // checkout for the whole session lifetime.
 const CHECKOUT_CLAIM_TTL_MS = 2 * 60 * 1000;
@@ -36,7 +37,8 @@ function checkoutBlocked(sub) {
 }
 
 function checkoutExpiresAtSeconds(nowMs) {
-  return Math.floor(Number(nowMs) / 1000) + Math.floor(CHECKOUT_SESSION_TTL_MS / 1000);
+  const now = Number(nowMs);
+  return Math.ceil((now + CHECKOUT_SESSION_TTL_MS) / 1000);
 }
 
 // A session the user can still pay in. An abandoned or expired one is not a

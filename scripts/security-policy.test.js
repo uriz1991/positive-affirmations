@@ -92,9 +92,20 @@ check('an open subscription blocks another checkout; a canceled one does not', (
   assert.strictEqual(checkoutBlocked({ status: 'incomplete_expired' }), false);
 });
 
+check('checkout expiry stays at least 31 minutes ahead of creation', () => {
+  assert.ok(CHECKOUT_SESSION_TTL_MS >= 31 * 60 * 1000);
+  [0, 1, 999, 1000, 1500, 1_700_000_000_500].forEach((now) => {
+    const expiresAt = checkoutExpiresAtSeconds(now);
+    assert.strictEqual(Number.isInteger(expiresAt), true);
+    const ahead = expiresAt * 1000 - now;
+    assert.ok(ahead >= 31 * 60 * 1000, 'short by ' + (31 * 60 * 1000 - ahead) + 'ms at ' + now);
+  });
+  const created = Date.now();
+  assert.ok(checkoutExpiresAtSeconds(created) * 1000 - created >= 31 * 60 * 1000);
+});
+
 check('an open checkout session is reused and does not burn the trial', () => {
   const now = 1_700_000_000_000;
-  assert.strictEqual(checkoutExpiresAtSeconds(now), Math.floor(now / 1000) + CHECKOUT_SESSION_TTL_MS / 1000);
   const fresh = reserveCheckout(null, now);
   assert.strictEqual(fresh.action, 'create');
   assert.strictEqual(fresh.trial, true);
@@ -304,8 +315,9 @@ check('client Firestore writes stay inside the rules allowlist', () => {
     }
   });
   assert.strictEqual(init.includes('updateDoc('), false);
+  assert.ok(init.includes('runTransaction'));
   const writes = init.match(/setDoc\([\s\S]*?\);/g) || [];
-  assert.strictEqual(writes.length, 3);
+  assert.strictEqual(writes.length, 2);
 });
 
 check('callable errors do not echo Stripe or Gemini messages', () => {
@@ -318,7 +330,11 @@ check('callable errors do not echo Stripe or Gemini messages', () => {
   assert.ok(src.includes("res.status(400).send('Invalid signature')"));
   const trialWrites = src.match(/trialUsed:\s*true/g) || [];
   assert.strictEqual(trialWrites.length, 1);
-  assert.ok(src.includes('expires_at: expiresAt'));
+  const createAt = src.indexOf('stripe.checkout.sessions.create');
+  const stampedAt = src.lastIndexOf('checkoutExpiresAtSeconds(Date.now())', createAt);
+  assert.ok(stampedAt !== -1 && stampedAt < createAt);
+  assert.strictEqual(src.includes('checkoutExpiresAtSeconds(now)'), false);
+  assert.ok(src.includes('pendingCheckoutExpiresAt: (session.expires_at || expiresAt) * 1000'));
   assert.ok(src.includes('pendingCheckoutSessionId: session.id'));
 });
 
