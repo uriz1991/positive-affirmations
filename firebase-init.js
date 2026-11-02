@@ -7,10 +7,7 @@ import {
   signInWithRedirect,
   getRedirectResult,
   signOut as fbSignOut,
-  onAuthStateChanged,
-  deleteUser,
-  reauthenticateWithPopup,
-  reauthenticateWithRedirect
+  onAuthStateChanged
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js';
 import {
   getFirestore,
@@ -62,25 +59,13 @@ const generatePersonalPlanFn = httpsCallable(functions, 'generatePersonalPlan');
 const redeemReferralFn = httpsCallable(functions, 'redeemReferral');
 const deleteAccountFn = httpsCallable(functions, 'deleteAccount');
 
-function requireCurrentUser() {
-  const user = auth.currentUser;
-  if (!user) {
-    const err = new Error('No signed-in user');
-    err.code = 'auth/no-current-user';
-    throw err;
-  }
-  return user;
-}
-
 window.AppAuth = {
   signIn: () => signInWithPopup(auth, provider),
   // Trusted Web Activity blocks window.open, so the Play build uses a redirect.
   signInWithRedirect: () => signInWithRedirect(auth, provider),
   getRedirectResult: () => getRedirectResult(auth),
   signOut: () => fbSignOut(auth),
-  deleteAuthUser: () => deleteUser(requireCurrentUser()),
-  reauthenticateWithPopup: () => reauthenticateWithPopup(requireCurrentUser(), provider),
-  reauthenticateWithRedirect: () => reauthenticateWithRedirect(requireCurrentUser(), provider),
+  // Server deletes Firestore data and the Auth user. No client re-auth.
   deleteCloudAccount: async () => {
     const result = await deleteAccountFn();
     return result.data;

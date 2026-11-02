@@ -61,21 +61,23 @@ function evaluatePlayBuildSafe(input) {
   if (window.PlayBuild && window.PlayBuild.evaluatePlayBuild) {
     return window.PlayBuild.evaluatePlayBuild(input);
   }
+  // Without the shared helper, only the explicit query counts. A foreign
+  // android-app:// referrer must not hide billing.
   const fromQuery = input.source === 'play' || input.play === '1';
-  const fromReferrer = (input.referrer || '').indexOf('android-app://') === 0;
-  return {
-    active: input.stored === '1' || fromQuery || fromReferrer,
-    persist: fromQuery || fromReferrer
-  };
+  return { active: fromQuery, persist: false, packageName: '' };
 }
 
 function initPlayBuild() {
   const decision = evaluatePlayBuildSafe(readPlayInput());
-  if (decision.persist) {
-    try { sessionStorage.setItem('play-build', '1'); } catch {}
+  if (decision.persist && decision.packageName) {
+    try { sessionStorage.setItem('play-build', decision.packageName); } catch {}
   }
   document.body.classList.toggle('play-build', !!decision.active);
   return !!decision.active;
+}
+
+function accountDeletionBlocked() {
+  try { return sessionStorage.getItem('account-deleted') === '1'; } catch { return false; }
 }
 
 function isPlayBuild() {
@@ -278,7 +280,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   registerServiceWorker();
   maybeShowOnboarding();
   if (window.AppAuth) {
-    await resumePlayAuthRedirect();
     window.AppAuth.onChange(handleAuthChange);
     setTimeout(() => {
       if (authResolved) return;
@@ -291,6 +292,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       const body = payload.notification?.body || payload.data?.body || '';
       showToast(`${title}${body ? ' — ' + body : ''}`);
     });
+    // After the listener and the reminder fallback. A stuck redirect result
+    // must not delay either of them.
+    resumePlayAuthRedirect();
   } else {
     authResolved = true;
     startReminderChecker();
@@ -1099,7 +1103,7 @@ async function registerPeriodicSync() {
 
 // ===== FCM (real push notifications, work even when the app is fully closed) =====
 async function registerFcmToken() {
-  if (!window.AppAuth?.getFcmToken) return;
+  if (accountDeletionBlocked() || !window.AppAuth?.getFcmToken) return;
   try {
     const token = await window.AppAuth.getFcmToken();
     if (!token) return;
@@ -2101,7 +2105,7 @@ function mergeReminders(local, cloud) {
 // account with no cloud data yet, or an older cloud copy, used to wipe out
 // whatever the user had already built up on this device).
 async function syncFromCloud(uid) {
-  if (!window.AppAuth?.loadUserData) return;
+  if (accountDeletionBlocked() || !window.AppAuth?.loadUserData) return;
   try {
     const cloud = await window.AppAuth.loadUserData(uid);
     if (cloud) {
@@ -2141,7 +2145,7 @@ async function syncFromCloud(uid) {
 }
 
 async function pushToCloud() {
-  if (!cloudSyncEnabled || !currentUser || !window.AppAuth?.saveUserData) return;
+  if (accountDeletionBlocked() || !cloudSyncEnabled || !currentUser || !window.AppAuth?.saveUserData) return;
   try {
     await window.AppAuth.saveUserData(currentUser.uid, {
       goalData,
@@ -2160,6 +2164,10 @@ async function pushToCloud() {
 
 async function handleGoogleSignIn() {
   if (!window.AppAuth) return;
+  // A deleted account blocks cloud sync for the rest of this tab so a
+  // still-valid ID token cannot upload the old copy. A new sign-in is
+  // intentional, so the block ends here.
+  try { sessionStorage.removeItem('account-deleted'); } catch {}
   try {
     // A Trusted Web Activity blocks window.open, so popup sign-in fails there.
     // The website keeps the popup.
@@ -2180,43 +2188,54 @@ function clearAccountLocalData() {
   });
 }
 
+function deleteFailureKey(err) {
+  const msg = String((err && err.message) || '');
+  if (msg.indexOf('stripe-cancel-failed') !== -1) return 'deleteAccountStripeCancelFailed';
+  if (msg.indexOf('stripe-customer-delete-failed') !== -1) return 'deleteAccountStripeCustomerFailed';
+  if (msg.indexOf('auth-delete-failed') !== -1) return 'deleteAccountAuthFailed';
+  if (err && (err.code === 'functions/unavailable' || err.code === 'functions/not-found')) {
+    return 'deleteAccountUnavailable';
+  }
+  return 'deleteAccountError';
+}
+
 async function resumePlayAuthRedirect() {
   if (!isPlayBuild() || !window.AppAuth?.getRedirectResult) return;
-  let pending = '';
-  try { pending = sessionStorage.getItem('pending-account-delete') || ''; } catch {}
-  let result = null;
   try {
-    result = await window.AppAuth.getRedirectResult();
-  } catch {
-    if (pending) showToast(t('deleteAccountError'));
-  }
-  if (!pending) {
+    const result = await window.AppAuth.getRedirectResult();
     if (result && result.user) showToast(t('toastSignedIn'));
-    return;
-  }
-  try { sessionStorage.removeItem('pending-account-delete'); } catch {}
-  if (!result) {
-    showToast(t('deleteAccountError'));
-    return;
-  }
-  try {
-    await performAccountDeletion({ phase: pending === 'auth' ? 'auth' : 'full' });
   } catch {
-    showToast(t('deleteAccountError'));
+    // A launch with no redirect in progress resolves to null. A thrown error
+    // here is a failed sign-in; the person can tap the button again.
+    showToast(t('toastSignInError'));
   }
 }
 
-async function performAccountDeletion(options = {}) {
-  const phase = options.phase || 'full';
-  if (phase !== 'auth') {
-    if (!window.AppAuth?.deleteCloudAccount) throw new Error('missing-delete');
-    const result = await window.AppAuth.deleteCloudAccount();
-    if (result?.stripeCancel === 'failed') showToast(t('deleteAccountStripeNote'));
-  }
-  await window.AppAuth.deleteAuthUser();
+async function finishLocalAccountRemoval(extraToastKey) {
+  try { sessionStorage.setItem('account-deleted', '1'); } catch {}
+  cloudSyncEnabled = false;
+  currentUser = null;
   clearAccountLocalData();
+  try { await window.AppAuth.signOut(); } catch {}
+  if (extraToastKey) showToast(t(extraToastKey));
   showToast(t('deleteAccountDone'));
   setTimeout(() => window.location.reload(), 700);
+}
+
+async function performAccountDeletion() {
+  if (!window.AppAuth?.deleteCloudAccount) {
+    const err = new Error('delete-unavailable');
+    err.code = 'functions/not-found';
+    throw err;
+  }
+  // Stop this device from uploading before the server call returns. The flag
+  // stays if the call fails in an unknown way, so a reload cannot push the
+  // local copy back. Known "nothing was deleted" errors clear it.
+  try { sessionStorage.setItem('account-deleted', '1'); } catch {}
+  cloudSyncEnabled = false;
+  const result = await window.AppAuth.deleteCloudAccount();
+  const extra = result && result.firestoreDeleted === false ? 'deleteAccountDataLeftover' : '';
+  await finishLocalAccountRemoval(extra);
 }
 
 async function handleDeleteAccountConfirmed() {
@@ -2230,31 +2249,19 @@ async function handleDeleteAccountConfirmed() {
   if (confirmBtn) confirmBtn.disabled = true;
   showToast(t('deleteAccountWorking'));
   try {
-    await performAccountDeletion({ phase: 'full' });
+    await performAccountDeletion();
     if (dialog) dialog.classList.remove('active');
   } catch (err) {
-    const code = err?.code || '';
-    if (code === 'auth/requires-recent-login') {
-      try {
-        if (isPlayBuild() && window.AppAuth?.reauthenticateWithRedirect) {
-          sessionStorage.setItem('pending-account-delete', 'auth');
-          await window.AppAuth.reauthenticateWithRedirect();
-          return;
-        }
-        await window.AppAuth.reauthenticateWithPopup();
-        await window.AppAuth.deleteAuthUser();
-        clearAccountLocalData();
-        if (dialog) dialog.classList.remove('active');
-        showToast(t('deleteAccountDone'));
-        setTimeout(() => window.location.reload(), 700);
-        return;
-      } catch {
-        try { sessionStorage.removeItem('pending-account-delete'); } catch {}
-        showToast(t('deleteAccountError'));
-      }
-    } else {
-      showToast(t('deleteAccountError'));
+    const key = deleteFailureKey(err);
+    const nothingDeleted = key === 'deleteAccountStripeCancelFailed'
+      || key === 'deleteAccountStripeCustomerFailed'
+      || key === 'deleteAccountAuthFailed'
+      || key === 'deleteAccountUnavailable';
+    if (nothingDeleted) {
+      try { sessionStorage.removeItem('account-deleted'); } catch {}
+      cloudSyncEnabled = !!currentUser;
     }
+    showToast(t(key));
   } finally {
     if (confirmBtn) confirmBtn.disabled = false;
   }

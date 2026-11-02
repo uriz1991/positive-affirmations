@@ -6,6 +6,7 @@ const { defineSecret } = require('firebase-functions/params');
 const logger = require('firebase-functions/logger');
 const { initializeApp } = require('firebase-admin/app');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
+const { getAuth } = require('firebase-admin/auth');
 const { getMessaging } = require('firebase-admin/messaging');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
@@ -47,6 +48,7 @@ const messaging = getMessaging();
 // Hebrew pool: scripts/integrate-affirmations.js.
 // Other languages: scripts/build-localized-pools.js.
 const { pickFromPool, slotForReminder, personalTextsForLanguage, assignTokenOwners, tokensForUser } = require('./notification-select');
+const { idsToCancel, mayWriteSubscription, isMissingStripeCustomer } = require('./account-deletion');
 const NOTIFICATION_POOLS = {
   he: require('./notification-pool.json').items,
   en: require('./notification-pool-en.json').items,
@@ -361,14 +363,18 @@ exports.stripeWebhook = onRequest({ secrets: [stripeSecretKey, stripeWebhookSecr
       const session = event.data.object;
       const uid = session.client_reference_id || session.metadata?.uid;
       if (uid) {
-        await db.doc('subscriptions/' + uid).set({
-          isPro: true,
-          stripeCustomerId: session.customer,
-          updatedAt: FieldValue.serverTimestamp()
-        }, { merge: true });
-        // Reverse lookup so the cancellation event (which only carries the
-        // Stripe customer id, not our uid) can find the right user.
-        await db.doc('stripeCustomers/' + session.customer).set({ uid });
+        if (!(await mayWriteSubscriptionFor(uid))) {
+          await db.doc('subscriptions/' + uid).delete();
+        } else {
+          await db.doc('subscriptions/' + uid).set({
+            isPro: true,
+            stripeCustomerId: session.customer,
+            updatedAt: FieldValue.serverTimestamp()
+          }, { merge: true });
+          // Reverse lookup so the cancellation event (which only carries the
+          // Stripe customer id, not our uid) can find the right user.
+          await db.doc('stripeCustomers/' + session.customer).set({ uid });
+        }
       }
     } else if (event.type === 'customer.subscription.deleted') {
       const subscription = event.data.object;
@@ -376,10 +382,7 @@ exports.stripeWebhook = onRequest({ secrets: [stripeSecretKey, stripeWebhookSecr
       const lookup = await db.doc('stripeCustomers/' + customerId).get();
       const uid = lookup.data()?.uid || subscription.metadata?.uid;
       if (uid) {
-        // Account deletion cancels Stripe and then removes the user doc.
-        // A webhook that lands after that must not recreate the subscription row.
-        const userSnap = await db.doc('users/' + uid).get();
-        if (!userSnap.exists) {
+        if (!(await mayWriteSubscriptionFor(uid))) {
           await db.doc('subscriptions/' + uid).delete();
         } else {
           await db.doc('subscriptions/' + uid).set({
@@ -627,40 +630,93 @@ exports.sendWeeklyCoachInsight = onSchedule({
   }));
 });
 
-// Deletes the signed-in user's Firestore data and cancels a website Stripe
-// subscription if one exists. The client deletes the Firebase Auth user
-// afterwards so it can handle auth/requires-recent-login.
+async function authUserExists(uid) {
+  try {
+    await getAuth().getUser(uid);
+    return true;
+  } catch (err) {
+    if (err && err.code === 'auth/user-not-found') return false;
+    throw err;
+  }
+}
+
+async function mayWriteSubscriptionFor(uid) {
+  const userSnap = await db.doc('users/' + uid).get();
+  const authExists = await authUserExists(uid);
+  return mayWriteSubscription(authExists, userSnap.exists);
+}
+
+// Deletes the signed-in account. Stripe is handled first: if an active
+// subscription cannot be cancelled, this throws and deletes nothing, so the
+// customer id is still there for a retry. The Auth user is deleted with the
+// Admin SDK (no recent login) before Firestore, so a failed data delete cannot
+// be undone by the client pushing local data back up.
+//
+// deleteUser revokes refresh tokens but an existing ID token can still pass
+// Firestore rules for up to an hour. This writes deletedAccounts/{uid} so a
+// rule can deny that window. The rules file is not in this repo, so the gap
+// stays until that rule is added. See PLAY_RELEASE.md.
 exports.deleteAccount = onCall({ secrets: [stripeSecretKey] }, async (request) => {
   if (!request.auth) {
     throw new HttpsError('unauthenticated', 'Sign in first.');
   }
   const uid = request.auth.uid;
-  const subSnap = await db.doc('subscriptions/' + uid).get();
+  const subRef = db.doc('subscriptions/' + uid);
+  const subSnap = await subRef.get();
   const customerId = subSnap.data()?.stripeCustomerId;
-  let stripeCancel = 'none';
 
   if (customerId) {
-    stripeCancel = 'ok';
+    const stripe = require('stripe')(secretValue(stripeSecretKey));
+    let listed;
     try {
-      const stripe = require('stripe')(secretValue(stripeSecretKey));
-      const listed = await stripe.subscriptions.list({
+      listed = await stripe.subscriptions.list({
         customer: customerId,
         status: 'all',
         limit: 100
       });
-      for (const sub of listed.data) {
-        if (sub.status !== 'canceled' && sub.status !== 'incomplete_expired') {
-          await stripe.subscriptions.cancel(sub.id);
-        }
-      }
-      await db.doc('stripeCustomers/' + customerId).delete();
     } catch (err) {
-      logger.error('Stripe cancel during account deletion failed', { uid, message: err.message });
-      stripeCancel = 'failed';
+      logger.error('Stripe list during account deletion failed', { uid, message: err.message });
+      throw new HttpsError('failed-precondition', 'stripe-cancel-failed');
+    }
+    for (const subId of idsToCancel(listed.data)) {
+      try {
+        await stripe.subscriptions.cancel(subId);
+      } catch (err) {
+        logger.error('Stripe cancel during account deletion failed', { uid, subId, message: err.message });
+        throw new HttpsError('failed-precondition', 'stripe-cancel-failed');
+      }
+    }
+    try {
+      await stripe.customers.del(customerId);
+    } catch (err) {
+      if (!isMissingStripeCustomer(err)) {
+        logger.error('Stripe customer delete failed', { uid, message: err.message });
+        throw new HttpsError('failed-precondition', 'stripe-customer-delete-failed');
+      }
     }
   }
 
-  await db.doc('users/' + uid).delete();
-  await db.doc('subscriptions/' + uid).delete();
-  return { deleted: true, stripeCancel };
+  try {
+    await getAuth().deleteUser(uid);
+  } catch (err) {
+    if (!err || err.code !== 'auth/user-not-found') {
+      logger.error('Auth delete failed; Firestore data was left in place', { uid, message: err && err.message });
+      throw new HttpsError('internal', 'auth-delete-failed');
+    }
+  }
+
+  let firestoreDeleted = true;
+  try {
+    await db.doc('deletedAccounts/' + uid).set({
+      deletedAt: FieldValue.serverTimestamp()
+    }, { merge: true });
+    await db.doc('users/' + uid).delete();
+    await subRef.delete();
+    if (customerId) await db.doc('stripeCustomers/' + customerId).delete();
+  } catch (err) {
+    firestoreDeleted = false;
+    logger.error('Firestore delete after auth deletion failed', { uid, message: err.message });
+  }
+
+  return { deleted: true, firestoreDeleted };
 });

@@ -33,29 +33,39 @@ check('play=1 is accepted as well', () => {
   assert.strictEqual(result.persist, true);
 });
 
-check('a saved session flag stays active without rewriting it', () => {
-  const result = evaluatePlayBuild({ stored: '1', source: null, play: null, referrer: '' });
-  assert.strictEqual(result.active, true);
-  assert.strictEqual(result.persist, false);
+check('a saved session flag stays active only for our package name', () => {
+  const { packageName } = require('../shared/play-build');
+  const kept = evaluatePlayBuild({ stored: packageName, source: null, play: null, referrer: '' });
+  assert.strictEqual(kept.active, true);
+  assert.strictEqual(kept.persist, false);
+  const stale = evaluatePlayBuild({ stored: '1', source: null, play: null, referrer: '' });
+  assert.strictEqual(stale.active, false);
+  assert.strictEqual(stale.persist, false);
 });
 
-check('android-app referrer counts only at the start of the string', () => {
-  const hit = evaluatePlayBuild({
-    stored: '',
-    source: null,
-    play: null,
-    referrer: 'android-app://io.github.uriz1991.positiveaffirmations/'
+check('only our package referrer turns Play mode on', () => {
+  const { packageName } = require('../shared/play-build');
+  ['', '/', '/https/uriz1991.github.io', '?source=play'].forEach((suffix) => {
+    const hit = evaluatePlayBuild({
+      stored: '',
+      source: null,
+      play: null,
+      referrer: 'android-app://' + packageName + suffix
+    });
+    assert.strictEqual(hit.active, true, suffix);
+    assert.strictEqual(hit.persist, true);
   });
-  assert.strictEqual(hit.active, true);
-  assert.strictEqual(hit.persist, true);
-  const miss = evaluatePlayBuild({
-    stored: '',
-    source: null,
-    play: null,
-    referrer: 'https://example.com/?next=android-app://evil'
+  [
+    'android-app://com.whatsapp/',
+    'android-app://com.google.android.gm',
+    'android-app://com.facebook.katana/',
+    'android-app://' + packageName + '.evil/',
+    'https://example.com/?next=android-app://' + packageName
+  ].forEach((referrer) => {
+    const miss = evaluatePlayBuild({ stored: '', source: null, play: null, referrer });
+    assert.strictEqual(miss.active, false, referrer);
+    assert.strictEqual(miss.persist, false, referrer);
   });
-  assert.strictEqual(miss.active, false);
-  assert.strictEqual(miss.persist, false);
 });
 
 check('unrelated query values do not opt the website into Play mode', () => {

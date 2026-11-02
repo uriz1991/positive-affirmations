@@ -189,5 +189,9 @@
   "deleteAccountError": "La suppression a échoué. Réessayez, ou écrivez à Uriz1991@gmail.com",
   "deleteAccountNeedSignIn": "Connectez-vous avant de supprimer le compte",
   "deleteAccountHelp": "Comment supprimer un compte",
-  "deleteAccountStripeNote": "Les données ont été supprimées, mais l'abonnement Stripe n'a pas pu être annulé. Écrivez à Uriz1991@gmail.com pour arrêter la facturation."
+  "deleteAccountStripeCancelFailed": "L'abonnement Stripe n'a pas pu être annulé. Rien n'a été supprimé. Réessayez, ou écrivez à Uriz1991@gmail.com",
+  "deleteAccountStripeCustomerFailed": "L'abonnement a été annulé, mais la fiche client Stripe n'a pas pu être supprimée. Vos données et la connexion sont toujours là. Réessayez.",
+  "deleteAccountAuthFailed": "La connexion n'a pas pu être supprimée. Vos données sont toujours là. Réessayez.",
+  "deleteAccountDataLeftover": "La connexion a été supprimée, mais certaines données cloud restent peut-être. Écrivez à Uriz1991@gmail.com",
+  "deleteAccountUnavailable": "Le service de suppression est indisponible. Rien n'a été supprimé. Réessayez plus tard."
 }
