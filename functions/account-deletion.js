@@ -108,6 +108,18 @@ async function applyRefundPlan(plan, createRefund) {
   }
 }
 
+// One deletedAccounts read becomes a set of uids that must not be notified.
+// A failed read blocks every candidate. An empty set would send to deleted accounts.
+function blockedSenderUids(tombstones, candidateUids, readFailed) {
+  const candidates = Array.isArray(candidateUids) ? candidateUids : [];
+  if (readFailed) return new Set(candidates);
+  const blocked = new Set();
+  (tombstones || []).forEach((row) => {
+    if (row && row.id) blocked.add(row.id);
+  });
+  return blocked;
+}
+
 module.exports = {
   DELETION_STEP_ORDER,
   subscriptionNeedsCancel,
@@ -120,5 +132,6 @@ module.exports = {
   invoiceIdFromCheckoutSession,
   refundPlanFromInvoice,
   refundOutcome,
-  applyRefundPlan
+  applyRefundPlan,
+  blockedSenderUids
 };

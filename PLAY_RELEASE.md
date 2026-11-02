@@ -64,24 +64,42 @@ Chrome בודק את הקובץ רק בשורש הדומיין:
 
 ## לפני מיזוג: הטריגר הראשון של Eventarc
 
-`dropRewrittenDeletedUser` ב-`functions/index.js` הוא טריגר Firestore הראשון בפרויקט (`onDocumentWritten`). שאר הפונקציות נשארות ב-`FUNCTION_REGION` (`me-west1`). הטריגר עצמו רץ ב-`FIRESTORE_TRIGGER_REGION`, שגם הוא `me-west1` עד שתשנה אותו. טריגר על מסמך חייב לשבת באותו אזור כמו מסד הנתונים של Firestore. אם המסד לא ב-`me-west1`, משנים רק את `FIRESTORE_TRIGGER_REGION` לפני הדיפלוי הראשון של הפונקציה הזו.
+`dropRewrittenDeletedUser` ב-`functions/index.js` הוא טריגר Firestore הראשון בפרויקט (`onDocumentWritten`, דור 2). טריגר כזה עובד רק על מסד Firestore במצב Native, ובאותו מיקום כמו `FIRESTORE_TRIGGER_REGION`. הקבוע עכשיו הוא `me-west1`. שאר הפונקציות נשארות ב-`FUNCTION_REGION`, גם הוא `me-west1`.
 
-לפני המיזוג, בקונסול או עם `gcloud firestore databases list --project positive-affirmations-9f382`, בודקים את מיקום המסד ומתאימים את הקבוע.
+בודקים את המצב והמיקום, ואם `locationId` שונה מ-`me-west1` משנים רק את `FIRESTORE_TRIGGER_REGION` לפני הדיפלוי הראשון:
 
-על חשבון השירות שמחזיק את המפתח `GCP_SA_KEY` (זה ש-GitHub Actions משתמש בו לדיפלוי) צריך את התפקידים האלה:
+```bash
+gcloud firestore databases list --project positive-affirmations-9f382 --format='table(name,type,locationId)'
+```
+
+`type` צריך להיות `FIRESTORE_NATIVE`.
+
+את ה-APIים מפעילים פעם אחת ידנית (עדיף כבעל הפרויקט, בלי לתת לחשבון הדיפלוי `roles/serviceusage.serviceUsageAdmin`):
+
+```bash
+gcloud services enable eventarc.googleapis.com run.googleapis.com pubsub.googleapis.com cloudfunctions.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com --project positive-affirmations-9f382
+```
+
+על חשבון השירות של `GCP_SA_KEY` (זה ש-GitHub Actions משתמש בו לדיפלוי):
 
 - `roles/cloudfunctions.admin`
 - `roles/run.admin`
-- `roles/eventarc.admin`
+- `roles/eventarc.developer`
 - `roles/iam.serviceAccountUser`
-- `roles/artifactregistry.admin`
+- `roles/artifactregistry.writer`
 - `roles/cloudbuild.builds.editor`
 
-וצריך שה-APIים האלה יהיו דלוקים: `eventarc.googleapis.com`, `run.googleapis.com`, `pubsub.googleapis.com`, `cloudfunctions.googleapis.com`, `cloudbuild.googleapis.com`, `artifactregistry.googleapis.com`.
+`roles/artifactregistry.admin` צריך רק אם מגדירים מדיניות ניקוי (cleanup policy). לא נדרש כאן.
 
-לסוכן של Eventarc, `service-PROJECT_NUMBER@gcp-sa-eventarc.iam.gserviceaccount.com`, צריך `roles/eventarc.serviceAgent`. גוגל מוסיפים אותו לבד אחרי שמפעילים את ה-API. לחשבון הריצה של הפונקציה (ברירת המחדל `PROJECT_NUMBER-compute@developer.gserviceaccount.com`) צריך `roles/eventarc.eventReceiver`.
+בדיפלוי הראשון של הטריגר, כלי הדיפלוי מנסה לעדכן את מדיניות ה-IAM של סוכני גוגל. בלי `roles/resourcemanager.projectIamAdmin` על חשבון הדיפלוי זה נופל עם `failed to modify the IAM policy`. עדיף לא לתת את התפקיד הזה, ובמקום זה בעל הפרויקט נותן את התפקידים לסוכנים פעם אחת:
 
-הדיפלוי הראשון של הטריגר הזה נופל לפעמים פעם אחת, עם שגיאה על סוכן Eventarc שעדיין לא מוכן. מחכים כמה דקות ומריצים את דיפלוי הפונקציות שוב. זו לא תקלה בקוד.
+- `service-PROJECT_NUMBER@gcp-sa-eventarc.iam.gserviceaccount.com` → `roles/eventarc.serviceAgent`
+- `service-PROJECT_NUMBER@gcp-sa-pubsub.iam.gserviceaccount.com` → `roles/iam.serviceAccountTokenCreator` (חובה בפרויקטים שנפתחו לפני אפריל 2021)
+- `PROJECT_NUMBER-compute@developer.gserviceaccount.com` (חשבון הריצה) → `roles/eventarc.eventReceiver`
+
+אם בכל זאת נותנים לחשבון הדיפלוי `roles/resourcemanager.projectIamAdmin`, הוא יכול להעניק את התפקידים האלה בעצמו. לא שניהם חובה.
+
+הדיפלוי הראשון עדיין יכול ליפול פעם אחת בזמן שגוגל מסיימים ליצור את סוכן Eventarc. מחכים כמה דקות ומריצים את דיפלוי הפונקציות שוב. זו לא תקלה בקוד.
 
 ## 6. מה המשתמש רואה בחנות
 

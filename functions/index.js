@@ -17,6 +17,16 @@ const stripeWebhookSecret = defineSecret('STRIPE_WEBHOOK_SECRET');
 
 const APP_URL = 'https://uriz1991.github.io/positive-affirmations/';
 
+// stripe-node 17.7 bundles 2025-02-24.acacia. Later versions (2025-03-31.basil
+// and after) remove Invoice.payment_intent and Invoice.charge. The deleted-
+// account refund reads those fields, so the version is pinned instead of
+// following the SDK default.
+const STRIPE_API_VERSION = '2025-02-24.acacia';
+
+function stripeClient() {
+  return require('stripe')(secretValue(stripeSecretKey), { apiVersion: STRIPE_API_VERSION });
+}
+
 // Secret Manager values have shown up with stray whitespace/newlines from
 // copy-paste in the past (e.g. a trailing \n makes Stripe reject an
 // otherwise-correct key with "Invalid API Key") — trim defensively everywhere
@@ -63,7 +73,8 @@ const {
   checkoutDecision,
   invoiceIdFromCheckoutSession,
   refundPlanFromInvoice,
-  applyRefundPlan
+  applyRefundPlan,
+  blockedSenderUids
 } = require('./account-deletion');
 const NOTIFICATION_POOLS = {
   he: require('./notification-pool.json').items,
@@ -315,7 +326,7 @@ exports.createCheckoutSession = onCall({ secrets: [stripeSecretKey] }, async (re
     throw new HttpsError('invalid-argument', 'Missing priceId.');
   }
 
-  const stripe = require('stripe')(secretValue(stripeSecretKey));
+  const stripe = stripeClient();
   const uid = request.auth.uid;
 
   let session;
@@ -352,7 +363,7 @@ exports.createPortalSession = onCall({ secrets: [stripeSecretKey] }, async (requ
     throw new HttpsError('failed-precondition', 'No active subscription found for this account.');
   }
 
-  const stripe = require('stripe')(secretValue(stripeSecretKey));
+  const stripe = stripeClient();
   try {
     const session = await stripe.billingPortal.sessions.create({
       customer: customerId,
@@ -366,7 +377,7 @@ exports.createPortalSession = onCall({ secrets: [stripeSecretKey] }, async (requ
 });
 
 exports.stripeWebhook = onRequest({ secrets: [stripeSecretKey, stripeWebhookSecret] }, async (req, res) => {
-  const stripe = require('stripe')(secretValue(stripeSecretKey));
+  const stripe = stripeClient();
   let event;
   try {
     event = stripe.webhooks.constructEvent(req.rawBody, req.headers['stripe-signature'], secretValue(stripeWebhookSecret));
@@ -658,20 +669,20 @@ exports.sendWeeklyCoachInsight = onSchedule({
   }));
 });
 
-// Look up only the uids this run might message. A failed read skips those
-// sends. An empty set would treat a tombstone outage as "not deleted".
+// One collection read per run, ids plus status only. A failed read blocks
+// every candidate so a tombstone outage cannot look like "not deleted".
 async function uidsBlockedFromSending(uids) {
   if (!uids.length) return new Set();
   try {
-    const snaps = await db.getAll(...uids.map((uid) => db.doc('deletedAccounts/' + uid)));
-    const blocked = new Set();
-    snaps.forEach((snap) => {
-      if (snap.exists) blocked.add(snap.id);
-    });
-    return blocked;
+    const snap = await db.collection('deletedAccounts').select('status').get();
+    return blockedSenderUids(
+      snap.docs.map((doc) => ({ id: doc.id, status: doc.get('status') })),
+      uids,
+      false
+    );
   } catch (err) {
-    logger.error('Could not read deletedAccounts; skipping sends', { message: err.message, count: uids.length });
-    return new Set(uids);
+    logger.error('Could not read deletedAccounts; skipping sends', { message: err.message });
+    return blockedSenderUids([], uids, true);
   }
 }
 
@@ -767,7 +778,7 @@ async function finishAccountDeletion(uid, customerHint) {
     customerId = subSnap.data()?.stripeCustomerId || null;
   }
 
-  const stripe = require('stripe')(secretValue(stripeSecretKey));
+  const stripe = stripeClient();
   await cancelCustomerSubscriptions(stripe, customerId, uid);
 
   await tombRef.set({

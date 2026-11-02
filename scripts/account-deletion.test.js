@@ -11,7 +11,8 @@ const {
   nextDeletionStep,
   invoiceIdFromCheckoutSession,
   refundPlanFromInvoice,
-  applyRefundPlan
+  applyRefundPlan,
+  blockedSenderUids
 } = require('../functions/account-deletion');
 
 let failures = 0;
@@ -179,6 +180,17 @@ check('charge_already_refunded is success and is not retried', async () => {
     throw err;
   });
   assert.strictEqual(outcome, 'already-refunded');
+});
+
+check('a failed deletedAccounts read blocks every candidate send', () => {
+  const candidates = ['u1', 'u2', 'u3'];
+  const blocked = blockedSenderUids([], candidates, true);
+  assert.strictEqual(blocked.size, 3);
+  candidates.forEach((uid) => assert.strictEqual(blocked.has(uid), true));
+  const ok = blockedSenderUids([{ id: 'u2', status: 'pending' }], candidates, false);
+  assert.strictEqual(ok.has('u1'), false);
+  assert.strictEqual(ok.has('u2'), true);
+  assert.strictEqual(ok.has('u3'), false);
 });
 
 (async () => {
